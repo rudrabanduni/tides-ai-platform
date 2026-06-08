@@ -1,0 +1,1 @@
+"""Canonical startup profile module."""
