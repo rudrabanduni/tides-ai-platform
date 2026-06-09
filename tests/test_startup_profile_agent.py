@@ -15,3 +15,15 @@ def test_generate_profile_returns_output():
     result = service.generate_profile(None)
 
     assert isinstance(result, StartupProfileAgentOutput)
+def test_generate_profile_contains_startup_name():
+    service = StartupProfileAgentService(None)
+
+    class Startup:
+        startup_name = "TIDES AI"
+
+    class Context:
+        startup = Startup()
+
+    result = service.generate_profile(Context())
+
+    assert "TIDES AI" in result.executive_summary
