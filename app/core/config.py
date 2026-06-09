@@ -38,6 +38,13 @@ class Settings(BaseSettings):
         validation_alias="CORS_ORIGINS",
     )
 
+    ai_enabled: bool = Field(default=False, validation_alias="AI_ENABLED")
+    ai_provider: str = Field(default="mock", validation_alias="AI_PROVIDER")
+    litellm_model: str = Field(default="claude-3-5-sonnet-20241022", validation_alias="LITELLM_MODEL")
+    ai_request_timeout_seconds: int = Field(default=120, validation_alias="AI_REQUEST_TIMEOUT_SECONDS")
+    ai_max_retries: int = Field(default=2, validation_alias="AI_MAX_RETRIES")
+    anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+
 
 @lru_cache
 def get_settings() -> Settings:

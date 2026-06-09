@@ -1,0 +1,1 @@
+"""Excel startup intake module."""

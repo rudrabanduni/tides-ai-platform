@@ -32,3 +32,11 @@ class StartupProfileVersionRead(BaseModel):
     version_number: int
     profile_snapshot: dict
     created_at: datetime
+class StartupProfileAgentOutput(BaseModel):
+    executive_summary: str
+    business_model: str
+    customer_segments: str
+    market_opportunity: str
+    strengths: list[str]
+    risks: list[str]
+    missing_information: list[str]

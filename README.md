@@ -89,6 +89,7 @@ The first admin is created through `/api/v1/auth/bootstrap-admin`. After that, o
 - Authentication: `/api/v1/auth`
 - Users: `/api/v1/users`
 - Startup intake and lifecycle: `/api/v1/startups`
+- Excel intake: `/api/v1/intake/upload-applications`
 - Startup Profile and versions: `/api/v1/startups/{startup_id}/profile`
 - Founders: `/api/v1/startups/{startup_id}/founders`
 - Company Profile: `/api/v1/startups/{startup_id}/company-profile`
@@ -117,6 +118,36 @@ The first admin is created through `/api/v1/auth/bootstrap-admin`. After that, o
 - Archived
 
 Every status change creates records in both `startup_status_history` and `audit_logs`.
+
+## Excel Intake Pipeline
+
+Upload Accubate startup application exports as `.xlsx` files:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/intake/upload-applications \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@applications.xlsx"
+```
+
+Expected columns:
+
+- Startup Name
+- Founder Name
+- Founder Email
+- Problem Statement
+- Solution
+- Target Market
+- Startup Stage
+
+Valid rows create:
+
+- `StartupApplication`
+- `Founder`
+- `StartupProfile`
+- `StartupProfileVersion`
+- audit log entries tying the startup back to the source filename and row number
+
+Invalid rows are reported in the response and do not stop the import.
 
 ## Recommendation Rules
 

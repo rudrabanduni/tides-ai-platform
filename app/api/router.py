@@ -6,6 +6,7 @@ from app.modules.company_profiles.routes import router as company_profiles_route
 from app.modules.documents.routes import router as documents_router
 from app.modules.evaluations.routes import router as evaluations_router
 from app.modules.founders.routes import router as founders_router
+from app.modules.intake.routes import router as intake_router
 from app.modules.recommendation_rules.routes import router as recommendation_rules_router
 from app.modules.reviews.routes import router as reviews_router
 from app.modules.startup_profiles.routes import router as startup_profiles_router
@@ -15,6 +16,7 @@ from app.modules.users.routes import router as users_router
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
+api_router.include_router(intake_router)
 api_router.include_router(startups_router)
 api_router.include_router(startup_profiles_router)
 api_router.include_router(founders_router)
