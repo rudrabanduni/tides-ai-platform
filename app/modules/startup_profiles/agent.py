@@ -25,12 +25,29 @@ class StartupProfileAgentService:
         )
 
     def generate_profile(self, context):
+        startup_name = "Unknown Startup"
+
+        if context and hasattr(context, "startup"):
+            startup_name = getattr(
+                context.startup,
+                "startup_name",
+                startup_name,
+            )
+
         return StartupProfileAgentOutput(
-            executive_summary="Profile generation not implemented yet.",
-            business_model="Unknown",
-            customer_segments="Unknown",
-            market_opportunity="Unknown",
-            strengths=[],
-            risks=[],
-            missing_information=[],
+            executive_summary=f"{startup_name} is an early-stage startup.",
+            business_model="To be determined",
+            customer_segments="To be determined",
+            market_opportunity="To be determined",
+            strengths=[
+                "Startup profile imported successfully"
+            ],
+            risks=[
+                "Insufficient information available"
+            ],
+            missing_information=[
+                "Business model details",
+                "Customer validation",
+                "Market sizing",
+            ],
         )
