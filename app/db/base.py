@@ -12,11 +12,12 @@ from app.modules.evaluations.models import (
 from app.modules.founders.models import Founder
 from app.modules.recommendation_rules.models import RecommendationRule
 from app.modules.reviews.models import CommitteeNote, ReviewerComment, ScoreOverride
-from app.modules.startup_profiles.models import StartupProfile, StartupProfileVersion
+from app.modules.startup_profiles.models import AIAssessmentRecord, StartupProfile, StartupProfileVersion
 from app.modules.startups.models import StartupApplication, StartupStatusHistory
 from app.modules.users.models import Role, User
 
 __all__ = [
+    "AIAssessmentRecord",
     "AuditLog",
     "Base",
     "CommitteeNote",

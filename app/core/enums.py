@@ -33,7 +33,9 @@ class DocumentType(str, Enum):
     PITCH_DECK = "pitch_deck"
     FOUNDER_RESUME = "founder_resume"
     COMPANY_DOCUMENT = "company_document"
+    BUSINESS_PLAN = "business_plan"
     OTHER = "other"
+
 
 
 class SourceType(str, Enum):

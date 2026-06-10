@@ -167,8 +167,9 @@ def test_document_parsed_text_only_included_when_status_is_parsed() -> None:
     )
     payload = context.to_prompt_dict()
 
-    assert payload["documents"][0]["parsed_text"] is None
-    assert payload["documents"][1]["parsed_text"] == "Pitch deck summary"
+    assert len(payload["documents"]) == 1
+    assert payload["documents"][0]["parsed_text"] == "Pitch deck summary"
+
 
 
 def test_documents_exclude_internal_storage_paths() -> None:

@@ -48,3 +48,39 @@ class StartupEvaluationScore(BaseModel):
     execution_score: int
     overall_score: int
     rationale: list[str]
+
+
+class StartupEvaluationOutput(BaseModel):
+    executive_summary: str
+    innovation_score: int
+    market_score: int
+    execution_score: int
+    overall_score: int
+    strengths: list[str]
+    weaknesses: list[str]
+    recommendations: list[str]
+
+
+class StartupAssessmentResult(BaseModel):
+    profile: StartupProfileAgentOutput
+    rule_based_score: StartupEvaluationScore
+    ai_evaluation: StartupEvaluationOutput
+
+
+class AIAssessmentRecordRead(BaseModel):
+    """API read-schema for a persisted AI assessment record."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    startup_id: UUID
+    executive_summary: str
+    innovation_score: int
+    market_score: int
+    execution_score: int
+    overall_score: int
+    strengths: list[str]
+    weaknesses: list[str]
+    recommendations: list[str]
+    assessed_by: UUID | None
+    created_at: datetime

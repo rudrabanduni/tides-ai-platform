@@ -59,3 +59,38 @@ class StartupProfileVersion(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     profile: Mapped[StartupProfile] = relationship(back_populates="versions")
+
+
+class AIAssessmentRecord(UUIDPrimaryKeyMixin, Base):
+    """Persisted result of POST /startups/{id}/assess."""
+
+    __tablename__ = "ai_assessment_records"
+
+    startup_id: Mapped[UUID] = mapped_column(
+        ForeignKey("startup_applications.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    executive_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    innovation_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    market_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    execution_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    overall_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    strengths: Mapped[list] = mapped_column(JSON, nullable=False)
+    weaknesses: Mapped[list] = mapped_column(JSON, nullable=False)
+    recommendations: Mapped[list] = mapped_column(JSON, nullable=False)
+    assessed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+        index=True,
+    )
+
+    startup = relationship("StartupApplication")
+    assessor = relationship("User")
+

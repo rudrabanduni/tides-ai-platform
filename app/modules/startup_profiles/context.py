@@ -108,7 +108,11 @@ class StartupProfileContextBuilder:
             startup=self._build_startup(startup),
             founders=[self._build_founder(founder) for founder in founders or ()],
             company_profile=self._build_company_profile(company_profile),
-            documents=[self._build_document(document) for document in documents or ()],
+            documents=[
+                self._build_document(doc)
+                for doc in documents or ()
+                if (doc.processing_status.value if hasattr(doc.processing_status, "value") else doc.processing_status) == DocumentProcessingStatus.PARSED.value
+            ],
             current_profile=self._build_current_profile(profile),
         )
 

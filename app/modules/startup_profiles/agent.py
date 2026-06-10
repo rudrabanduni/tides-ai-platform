@@ -1,6 +1,11 @@
-from app.services.ai import create_ai_gateway
+from app.services.ai import AICompletionRequest, create_ai_gateway
 from app.modules.startup_profiles.context import StartupProfileContextBuilder
-from app.modules.startup_profiles.schemas import StartupProfileAgentOutput, StartupEvaluationScore
+from app.modules.startup_profiles.schemas import (
+    StartupProfileAgentOutput,
+    StartupEvaluationScore,
+    StartupEvaluationOutput,
+    StartupAssessmentResult,
+)
 
 
 class StartupProfileAgentService:
@@ -19,7 +24,7 @@ class StartupProfileAgentService:
         return StartupProfileContextBuilder().build(
             startup=startup,
             founders=founders or [],
-            startup_profile=startup_profile,
+            profile=startup_profile,
             company_profile=company_profile,
             documents=documents or [],
         )
@@ -136,4 +141,152 @@ class StartupProfileAgentService:
             execution_score=execution_score,
             overall_score=overall_score,
             rationale=rationale,
+        )
+
+    def build_evaluation_prompt(self, context) -> str:
+        startup = context.startup
+
+        startup_name = getattr(startup, "startup_name", None) or "Not specified"
+        problem_statement = getattr(startup, "problem_statement", None) or "Not specified"
+        solution_summary = getattr(startup, "solution_summary", None) or "Not specified"
+        target_market = getattr(startup, "target_market", None) or "Not specified"
+        stage = getattr(startup, "stage", None) or "Not specified"
+        business_model = getattr(startup, "business_model", None) or "Not specified"
+        traction_summary = getattr(startup, "traction_summary", None) or "Not specified"
+        funding_status = getattr(startup, "funding_status", None) or "Not specified"
+
+        # Extract and format supporting documents with limits
+        MAX_DOC_CHARS = 3000
+        MAX_TOTAL_DOC_CHARS = 10000
+
+        parsed_docs = []
+        docs_list = getattr(context, "documents", None) or []
+        for doc in docs_list:
+            status = getattr(doc, "processing_status", None)
+            if hasattr(status, "value"):
+                status = status.value
+            if status != "parsed":
+                continue
+
+            doc_type = getattr(doc, "document_type", None)
+            if hasattr(doc_type, "value"):
+                doc_type = doc_type.value
+
+            orig_filename = getattr(doc, "original_filename", None) or "Unknown"
+            parsed_text = getattr(doc, "parsed_text", None) or ""
+
+            parsed_docs.append({
+                "document_type": doc_type or "Not specified",
+                "original_filename": orig_filename,
+                "parsed_text": parsed_text,
+            })
+
+        documents_section = ""
+        if parsed_docs:
+            documents_section = "\nSupporting Documents:\n"
+            total_doc_context = ""
+            for doc in parsed_docs:
+                doc_type = doc["document_type"]
+                orig_filename = doc["original_filename"]
+                text = doc["parsed_text"]
+
+                # Control 1: Per-document limit (2,000–3,000 characters)
+                if len(text) > MAX_DOC_CHARS:
+                    truncated_text = text[:MAX_DOC_CHARS] + "... [TRUNCATED]"
+                else:
+                    truncated_text = text
+
+                doc_str = (
+                    f"- Document Type: {doc_type}\n"
+                    f"  Original Filename: {orig_filename}\n"
+                    f"  Parsed Text: {truncated_text}\n"
+                )
+
+                # Control 2: Total document context limit (8,000–12,000 characters)
+                if len(total_doc_context) + len(doc_str) > MAX_TOTAL_DOC_CHARS:
+                    allowed_len = MAX_TOTAL_DOC_CHARS - len(total_doc_context)
+                    if allowed_len > 0:
+                        header = f"- Document Type: {doc_type}\n  Original Filename: {orig_filename}\n  Parsed Text: "
+                        if allowed_len > len(header) + 15:
+                            text_allowed_len = allowed_len - len(header) - 15
+                            truncated_val = truncated_text[:text_allowed_len] + "... [TRUNCATED]\n"
+                            doc_str = header + truncated_val
+                        else:
+                            doc_str = doc_str[:allowed_len]
+                        total_doc_context += doc_str
+                    break
+                else:
+                    total_doc_context += doc_str
+
+            documents_section += total_doc_context
+
+        prompt = f"""You are a startup evaluator for TIDES IIT Roorkee.
+
+Evaluate the following startup details:
+- Startup Name: {startup_name}
+- Stage: {stage}
+- Problem Statement: {problem_statement}
+- Solution Summary: {solution_summary}
+- Target Market: {target_market}
+- Business Model: {business_model}
+- Traction Summary: {traction_summary}
+- Funding Status: {funding_status}
+{documents_section}
+Scoring Rubric:
+1. Innovation (0-10)
+   - Novelty
+   - Technical differentiation
+   - Defensibility
+2. Market Potential (0-10)
+   - Market size
+   - Customer clarity
+   - Scalability
+3. Execution Readiness (0-10)
+   - Business model maturity
+   - Traction
+   - Funding readiness
+
+Rules:
+- Use only supplied information.
+- Do not invent facts.
+- Penalize missing information.
+- Explain reasoning briefly.
+- Return JSON only.
+
+Output Contract JSON:
+{{
+  "executive_summary": "",
+  "innovation_score": 0,
+  "market_score": 0,
+  "execution_score": 0,
+  "overall_score": 0,
+  "strengths": [],
+  "weaknesses": [],
+  "recommendations": []
+}}
+"""
+        return prompt
+
+    def evaluate_startup_with_ai(self, context) -> StartupEvaluationOutput:
+        prompt = self.build_evaluation_prompt(context)
+
+        request = AICompletionRequest(
+            system_prompt="You are a startup evaluator for TIDES IIT Roorkee.",
+            user_prompt=prompt,
+            prompt_version="v1",
+        )
+
+        result = self.gateway.complete_json(request, StartupEvaluationOutput)
+        return result.data
+
+    def assess_startup(self, context) -> StartupAssessmentResult:
+        """Run the full assessment pipeline: profile → rule score → AI evaluation."""
+        profile = self.generate_profile(context)
+        rule_based_score = self.evaluate_startup(context)
+        ai_evaluation = self.evaluate_startup_with_ai(context)
+
+        return StartupAssessmentResult(
+            profile=profile,
+            rule_based_score=rule_based_score,
+            ai_evaluation=ai_evaluation,
         )

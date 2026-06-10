@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.modules.startup_profiles.models import StartupProfile, StartupProfileVersion
+from app.modules.startup_profiles.models import AIAssessmentRecord, StartupProfile, StartupProfileVersion
 from app.repositories.base import BaseRepository
 
 
@@ -43,3 +43,17 @@ class StartupProfileVersionRepository(BaseRepository[StartupProfileVersion]):
             .order_by(StartupProfileVersion.version_number.desc())
         )
         return self.db.scalars(statement).all()
+
+
+class AIAssessmentRecordRepository(BaseRepository[AIAssessmentRecord]):
+    def __init__(self, db: Session) -> None:
+        super().__init__(db, AIAssessmentRecord)
+
+    def list_for_startup(self, startup_id: UUID) -> Sequence[AIAssessmentRecord]:
+        statement = (
+            select(AIAssessmentRecord)
+            .where(AIAssessmentRecord.startup_id == startup_id)
+            .order_by(AIAssessmentRecord.created_at.desc())
+        )
+        return self.db.scalars(statement).all()
+
