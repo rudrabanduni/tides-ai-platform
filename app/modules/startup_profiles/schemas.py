@@ -40,3 +40,11 @@ class StartupProfileAgentOutput(BaseModel):
     strengths: list[str]
     risks: list[str]
     missing_information: list[str]
+
+
+class StartupEvaluationScore(BaseModel):
+    innovation_score: int
+    market_score: int
+    execution_score: int
+    overall_score: int
+    rationale: list[str]
