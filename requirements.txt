@@ -11,3 +11,7 @@ python-multipart==0.0.20
 SQLAlchemy==2.0.41
 uvicorn[standard]==0.34.3
 pytest==8.4.0
+litellm==1.49.0
+tenacity==8.5.0
+reportlab==4.2.5
+

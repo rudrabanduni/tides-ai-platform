@@ -55,7 +55,8 @@ def test_create_ai_gateway_force_mock_overrides_provider() -> None:
 
 def test_create_ai_gateway_raises_when_provider_not_implemented() -> None:
     with pytest.raises(AIProviderError, match="not implemented"):
-        create_ai_gateway(settings=_settings(ai_provider="litellm", ai_enabled=True))
+        create_ai_gateway(settings=_settings(ai_provider="unsupported", ai_enabled=True))
+
 
 
 def test_create_ai_gateway_raises_when_disabled_non_mock_provider() -> None:
@@ -103,3 +104,107 @@ def test_mock_gateway_raises_on_invalid_response() -> None:
 
     with pytest.raises(AIResponseParseError, match="does not match"):
         gateway.complete_json(request, SampleAgentOutput)
+
+
+# ---------------------------------------------------------------------------
+# LiteLLMGateway Tests
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch
+from app.services.ai import LiteLLMGateway
+
+
+def test_create_ai_gateway_returns_litellm_when_enabled() -> None:
+    gateway = create_ai_gateway(settings=_settings(ai_provider="litellm", ai_enabled=True))
+    assert isinstance(gateway, LiteLLMGateway)
+    assert gateway._model == "claude-3-5-sonnet-20241022"
+    assert gateway._timeout == 120
+    assert gateway._max_retries == 2
+
+
+class MockMessage:
+    def __init__(self, content):
+        self.content = content
+
+
+class MockChoice:
+    def __init__(self, content):
+        self.message = MockMessage(content)
+
+
+class MockCompletionResponse:
+    def __init__(self, content):
+        self.choices = [MockChoice(content)]
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_success(mock_completion) -> None:
+    # Setup mock response
+    mock_completion.return_value = MockCompletionResponse(
+        content='{"executive_summary": "Grid analytics.", "strengths": ["Strong team"]}'
+    )
+
+    gateway = LiteLLMGateway(model="claude-3-5-sonnet-20241022", timeout=60, max_retries=1)
+    request = AICompletionRequest(
+        system_prompt="System instructions",
+        user_prompt="User input",
+        prompt_version="v1",
+    )
+
+    result = gateway.complete_json(request, SampleAgentOutput)
+
+    assert result.data.executive_summary == "Grid analytics."
+    assert result.data.strengths == ["Strong team"]
+    assert result.metadata.provider == "litellm"
+    assert result.metadata.model == "claude-3-5-sonnet-20241022"
+    assert result.metadata.prompt_version == "v1"
+
+    # Verify litellm.completion call parameters
+    mock_completion.assert_called_once_with(
+        model="claude-3-5-sonnet-20241022",
+        messages=[
+            {"role": "system", "content": "System instructions"},
+            {"role": "user", "content": "User input"},
+        ],
+        response_format=SampleAgentOutput,
+        timeout=60,
+        num_retries=1,
+    )
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_raises_aiprovidererror_on_litellm_error(mock_completion) -> None:
+    from litellm.exceptions import BadRequestError
+    # Mock LiteLLM exception
+    mock_completion.side_effect = BadRequestError(message="Invalid API Key", model="claude-3-5-sonnet-20241022", llm_provider="anthropic")
+
+    gateway = LiteLLMGateway()
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIProviderError, match="LiteLLM call failed"):
+        gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_raises_airesponseparseerror_on_invalid_json(mock_completion) -> None:
+    # Non-JSON response
+    mock_completion.return_value = MockCompletionResponse(content="plain text response")
+
+    gateway = LiteLLMGateway()
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIResponseParseError, match="Failed to parse"):
+        gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_raises_airesponseparseerror_on_schema_mismatch(mock_completion) -> None:
+    # JSON but incorrect schema
+    mock_completion.return_value = MockCompletionResponse(content='{"strengths": []}')
+
+    gateway = LiteLLMGateway()
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIResponseParseError, match="validation failed"):
+        gateway.complete_json(request, SampleAgentOutput)
+

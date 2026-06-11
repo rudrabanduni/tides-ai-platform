@@ -2,7 +2,9 @@ from collections.abc import Sequence
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+import io
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -23,6 +25,8 @@ from app.modules.startup_profiles.schemas import (
 )
 from app.modules.startup_profiles.service import StartupProfileService
 from app.modules.startups.service import StartupService
+from app.services.report.pdf import generate_assessment_pdf
+
 
 router = APIRouter(prefix="/startups", tags=["Startup Profiles"])
 
@@ -111,3 +115,39 @@ def list_startup_evaluations(
     # Verify the startup exists before querying assessments.
     StartupService(db).get(startup_id)
     return AIAssessmentRecordRepository(db).list_for_startup(startup_id)
+
+
+@router.get("/{startup_id}/report", response_class=StreamingResponse)
+def download_assessment_report(
+    startup_id: UUID,
+    current_user: ReadOnlyUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> StreamingResponse:
+    """Download the latest AI assessment for a startup as a PDF report.
+
+    Returns 404 if the startup does not exist or has no assessments yet.
+    """
+    startup = StartupService(db).get(startup_id)
+
+    records = AIAssessmentRecordRepository(db).list_for_startup(startup_id)
+    if not records:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No assessment found for this startup. Run POST /assess first.",
+        )
+
+    latest = records[0]
+    record_schema = AIAssessmentRecordRead.model_validate(latest)
+
+    pdf_bytes = generate_assessment_pdf(
+        startup_name=startup.startup_name,
+        record=record_schema,
+    )
+
+    filename = f"assessment_{startup_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
