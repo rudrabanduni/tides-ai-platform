@@ -15,6 +15,17 @@ from app.modules.reviews.models import CommitteeNote, ReviewerComment, ScoreOver
 from app.modules.startup_profiles.models import AIAssessmentRecord, StartupProfile, StartupProfileVersion
 from app.modules.startups.models import StartupApplication, StartupStatusHistory
 from app.modules.users.models import Role, User
+from app.modules.intelligence.models import (
+    KnowledgeFieldRegistry,
+    StartupIntelligenceProfile,
+    StartupClaim,
+    StartupEvidence,
+    FieldVersion,
+    FieldConflict,
+    FieldSource,
+    StartupProcessingStatus,
+    StartupIntelligenceProfileVersion,
+)
 
 __all__ = [
     "AIAssessmentRecord",
@@ -39,4 +50,14 @@ __all__ = [
     "StartupProfileVersion",
     "StartupStatusHistory",
     "User",
+    "KnowledgeFieldRegistry",
+    "StartupIntelligenceProfile",
+    "StartupClaim",
+    "StartupEvidence",
+    "FieldVersion",
+    "FieldConflict",
+    "FieldSource",
+    "StartupProcessingStatus",
+    "StartupIntelligenceProfileVersion",
 ]
+

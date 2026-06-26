@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -79,6 +79,9 @@ class AIAssessmentRecord(UUIDPrimaryKeyMixin, Base):
     strengths: Mapped[list] = mapped_column(JSON, nullable=False)
     weaknesses: Mapped[list] = mapped_column(JSON, nullable=False)
     recommendations: Mapped[list] = mapped_column(JSON, nullable=False)
+    recommendation_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, index=True
+    )
     assessed_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

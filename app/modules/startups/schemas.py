@@ -35,6 +35,16 @@ class StartupStatusUpdate(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class BulkStatusUpdate(BaseModel):
+    startup_ids: list[UUID]
+    new_status: StartupStatus
+    reason: str = Field(min_length=1)
+
+
+class BulkDelete(BaseModel):
+    startup_ids: list[UUID]
+
+
 class StartupRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

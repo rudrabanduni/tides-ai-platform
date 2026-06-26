@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    dev_mode: bool = Field(default=False, validation_alias="DEV_MODE")
 
     database_url: str = Field(
         default="postgresql+psycopg://tides:tides@postgres:5432/tides_ai",

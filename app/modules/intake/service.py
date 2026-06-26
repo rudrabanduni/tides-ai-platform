@@ -138,6 +138,7 @@ class ExcelIntakeService:
         successful_rows = 0
         errors: list[IntakeRowError] = []
         seen_founder_emails: set[str] = set()
+        imported_startup_ids: list[str] = []
 
         for row_number, raw_values in enumerate(worksheet.iter_rows(min_row=2, values_only=True), start=2):
             if self._is_empty_row(raw_values):
@@ -154,12 +155,13 @@ class ExcelIntakeService:
             seen_founder_emails.add(founder_email)
 
             try:
-                self._create_records_for_row(
+                startup_id = self._create_records_for_row(
                     intake_row,
                     filename=filename,
                     import_id=import_id,
                     actor_id=actor_id,
                 )
+                imported_startup_ids.append(str(startup_id))
             except SQLAlchemyError as exc:
                 self.db.rollback()
                 errors.append(
@@ -178,6 +180,7 @@ class ExcelIntakeService:
             successful_rows=successful_rows,
             failed_rows=len(errors_by_row(errors)),
             errors=errors,
+            imported_startup_ids=imported_startup_ids,
         )
 
     def _create_records_for_row(
@@ -187,7 +190,7 @@ class ExcelIntakeService:
         filename: str,
         import_id: str,
         actor_id: UUID | None,
-    ) -> None:
+    ) -> UUID:
         startup = StartupApplication(
             startup_name=intake_row.startup_name or "",
             stage=intake_row.stage,
@@ -260,6 +263,7 @@ class ExcelIntakeService:
             },
         )
         self.db.commit()
+        return startup.id
 
     def _validate_row(self, intake_row: IntakeRow, seen_founder_emails: set[str]) -> list[IntakeRowError]:
         errors: list[IntakeRowError] = []

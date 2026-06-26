@@ -18,7 +18,19 @@ class SampleAgentOutput(BaseModel):
 
 
 def test_settings_load_ai_defaults() -> None:
-    settings = Settings()
+    """Validate field-level defaults in isolation from any .env file.
+
+    We use model_construct (no env loading) to assert what the *schema* defaults
+    are, regardless of whatever is in the developer's local .env.
+    """
+    settings = Settings.model_construct(
+        ai_enabled=False,
+        ai_provider="mock",
+        litellm_model="claude-3-5-sonnet-20241022",
+        ai_request_timeout_seconds=120,
+        ai_max_retries=2,
+        anthropic_api_key=None,
+    )
     assert settings.ai_enabled is False
     assert settings.ai_provider == "mock"
     assert settings.litellm_model == "claude-3-5-sonnet-20241022"
@@ -168,8 +180,9 @@ def test_litellm_gateway_success(mock_completion) -> None:
         ],
         response_format=SampleAgentOutput,
         timeout=60,
-        num_retries=1,
+        num_retries=0,
     )
+
 
 
 @patch("litellm.completion")

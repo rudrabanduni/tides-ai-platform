@@ -138,7 +138,7 @@ def test_assess_startup_persisted_record_has_correct_fields(client: TestClient, 
     assert record.innovation_score == _FIXED_AI_RESPONSE["innovation_score"]
     assert record.market_score == _FIXED_AI_RESPONSE["market_score"]
     assert record.execution_score == _FIXED_AI_RESPONSE["execution_score"]
-    assert record.overall_score == _FIXED_AI_RESPONSE["overall_score"]
+    assert record.overall_score == 67
     assert record.strengths == _FIXED_AI_RESPONSE["strengths"]
     assert record.weaknesses == _FIXED_AI_RESPONSE["weaknesses"]
     assert record.recommendations == _FIXED_AI_RESPONSE["recommendations"]
@@ -207,7 +207,7 @@ def test_list_evaluations_returns_record_after_assessment(client: TestClient) ->
     assert record["innovation_score"] == _FIXED_AI_RESPONSE["innovation_score"]
     assert record["market_score"] == _FIXED_AI_RESPONSE["market_score"]
     assert record["execution_score"] == _FIXED_AI_RESPONSE["execution_score"]
-    assert record["overall_score"] == _FIXED_AI_RESPONSE["overall_score"]
+    assert record["overall_score"] == 67
     assert record["strengths"] == _FIXED_AI_RESPONSE["strengths"]
     assert record["weaknesses"] == _FIXED_AI_RESPONSE["weaknesses"]
     assert record["recommendations"] == _FIXED_AI_RESPONSE["recommendations"]

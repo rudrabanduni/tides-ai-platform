@@ -13,3 +13,4 @@ class IntakeUploadSummary(BaseModel):
     successful_rows: int = Field(ge=0)
     failed_rows: int = Field(ge=0)
     errors: list[IntakeRowError] = Field(default_factory=list)
+    imported_startup_ids: list[str] = Field(default_factory=list)

@@ -9,6 +9,26 @@ from app.services.ai.schemas import AICompletionMetadata, AICompletionRequest, A
 
 T = TypeVar("T", bound=BaseModel)
 
+# Error class names from LiteLLM that indicate transient server issues worth retrying
+_RETRYABLE_ERROR_NAMES = (
+    "ServiceUnavailableError",
+    "RateLimitError",
+    "Timeout",
+    "APIConnectionError",
+)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    cls_name = type(exc).__name__
+    msg = str(exc)
+    return (
+        any(name in cls_name for name in _RETRYABLE_ERROR_NAMES)
+        or "503" in msg
+        or "429" in msg
+        or "UNAVAILABLE" in msg
+        or "high demand" in msg.lower()
+    )
+
 
 class LiteLLMGateway:
     """LiteLLM AI gateway targeting Claude and other LLM models."""
@@ -20,7 +40,7 @@ class LiteLLMGateway:
         *,
         model: str = "claude-3-5-sonnet-20241022",
         timeout: int = 120,
-        max_retries: int = 2,
+        max_retries: int = 3,
     ) -> None:
         self._model = model
         self._timeout = timeout
@@ -40,16 +60,30 @@ class LiteLLMGateway:
 
         model = request.model or self._model
 
-        try:
-            response = litellm.completion(
-                model=model,
-                messages=messages,
-                response_format=response_model,
-                timeout=self._timeout,
-                num_retries=self._max_retries,
-            )
-        except Exception as exc:
-            raise AIProviderError(f"LiteLLM call failed: {exc}") from exc
+        last_exc: Exception | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = litellm.completion(
+                    model=model,
+                    messages=messages,
+                    response_format=response_model,
+                    timeout=self._timeout,
+                    num_retries=0,  # We manage retries here with exponential backoff
+                )
+                last_exc = None
+                break  # success — exit retry loop
+            except Exception as exc:
+                last_exc = exc
+                if _is_retryable(exc) and attempt < self._max_retries:
+                    backoff_seconds = 2 ** attempt  # 1s, 2s, 4s ...
+                    time.sleep(backoff_seconds)
+                    continue
+                raise AIProviderError(f"LiteLLM call failed: {exc}") from exc
+
+        if last_exc is not None:
+            raise AIProviderError(
+                f"LiteLLM call failed after {self._max_retries + 1} attempts: {last_exc}"
+            ) from last_exc
 
         try:
             choice = response.choices[0]

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StartupProfilePayload(BaseModel):
@@ -32,6 +32,7 @@ class StartupProfileVersionRead(BaseModel):
     version_number: int
     profile_snapshot: dict
     created_at: datetime
+
 class StartupProfileAgentOutput(BaseModel):
     executive_summary: str
     business_model: str
@@ -55,7 +56,7 @@ class StartupEvaluationOutput(BaseModel):
     innovation_score: int
     market_score: int
     execution_score: int
-    overall_score: int
+    overall_score: int = 0
     strengths: list[str]
     weaknesses: list[str]
     recommendations: list[str]
@@ -82,5 +83,56 @@ class AIAssessmentRecordRead(BaseModel):
     strengths: list[str]
     weaknesses: list[str]
     recommendations: list[str]
+    recommendation_status: str | None = None
     assessed_by: UUID | None
     created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Batch assessment
+# ---------------------------------------------------------------------------
+
+class BulkAssessRequest(BaseModel):
+    """Request body for POST /startups/bulk-assess."""
+
+    startup_ids: list[UUID] = Field(..., min_length=1, max_length=200)
+
+
+class BulkAssessResult(BaseModel):
+    """Summary result returned by POST /startups/bulk-assess."""
+
+    processed: int
+    successful: int
+    failed: int
+    errors: list[dict] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Rankings
+# ---------------------------------------------------------------------------
+
+class StartupRankEntry(BaseModel):
+    """A single row in the ranked list of startups."""
+
+    rank: int
+    startup_id: UUID
+    startup_name: str
+    overall_score: int
+    recommendation_status: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+class DashboardSummary(BaseModel):
+    """Counts used by the dashboard summary card."""
+
+    total_startups: int
+    recommended: int
+    review: int
+    rejected: int
+    approved_startups: int = 0
+    pending_committee_review: int = 0
+    ai_recommended: int = 0
+    final_rejected: int = 0

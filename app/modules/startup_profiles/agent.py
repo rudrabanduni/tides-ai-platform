@@ -276,8 +276,24 @@ Output Contract JSON:
             prompt_version="v1",
         )
 
-        result = self.gateway.complete_json(request, StartupEvaluationOutput)
-        return result.data
+        result = self.gateway.complete_json(
+            request,
+            StartupEvaluationOutput,
+        )
+
+        evaluation = result.data
+
+        raw_score = (
+            evaluation.innovation_score
+            + evaluation.market_score
+            + evaluation.execution_score
+        )
+
+        evaluation.overall_score = round(
+            (raw_score / 30) * 100
+        )
+
+        return evaluation
 
     def assess_startup(self, context) -> StartupAssessmentResult:
         """Run the full assessment pipeline: profile → rule score → AI evaluation."""
@@ -289,4 +305,4 @@ Output Contract JSON:
             profile=profile,
             rule_based_score=rule_based_score,
             ai_evaluation=ai_evaluation,
-        )
+        )

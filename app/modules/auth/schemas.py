@@ -10,11 +10,17 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     user: UserRead
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class BootstrapAdminRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=12, max_length=128)
+

@@ -181,7 +181,7 @@ def test_assess_startup_ai_evaluation_shape(client: TestClient) -> None:
     # Values should come from _FIXED_AI_RESPONSE (via MockAIGateway)
     assert ai_eval["innovation_score"] == 8
     assert ai_eval["market_score"] == 7
-    assert ai_eval["overall_score"] == 20
+    assert ai_eval["overall_score"] == 67
     assert "Clear solution" in ai_eval["strengths"]
 
 

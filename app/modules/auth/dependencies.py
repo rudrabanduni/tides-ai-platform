@@ -14,38 +14,31 @@ from app.modules.users.models import User
 from app.modules.users.service import UserService
 
 settings = get_settings()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/login", auto_error=False)
 
 
-def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[Session, Depends(get_db)],
-) -> User:
-    subject = decode_access_token(token)
-    if not subject:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    try:
-        user_id = UUID(subject)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    user = UserService(db).get_user(user_id)
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
-    return user
+def _get_dev_user(db: Session) -> User:
+    """Return the first active user in the database as the DEV_MODE actor."""
+    users = UserService(db).list_users(limit=1)
+    if users:
+        return users[0]
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="DEV_MODE is enabled but no users have been bootstrapped. Run POST /auth/bootstrap-admin first.",
+    )
+
+
+from app.security.auth import get_current_user
+
 
 
 def require_roles(*allowed_roles: RoleName) -> Callable:
     allowed = {role.value for role in allowed_roles}
 
     def dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+        # DEV_MODE: skip role enforcement
+        if settings.dev_mode:
+            return current_user
         if current_user.role.name not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user

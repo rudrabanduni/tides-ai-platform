@@ -6,6 +6,10 @@ class RoleName(str, Enum):
     EVALUATOR = "evaluator"
     COMMITTEE_MEMBER = "committee_member"
     VIEWER = "viewer"
+    INCUBATION_MANAGER = "incubation_manager"
+    REVIEWER = "reviewer"
+    ANALYST = "analyst"
+
 
 
 class StartupStatus(str, Enum):
@@ -20,6 +24,8 @@ class StartupStatus(str, Enum):
     INCUBATED = "Incubated"
     GRADUATED = "Graduated"
     ARCHIVED = "Archived"
+    REJECTED = "Rejected"
+    APPROVED_FOR_INCUBATION = "Approved For Incubation"
 
 
 class DocumentProcessingStatus(str, Enum):
@@ -59,3 +65,18 @@ class RecommendationValue(str, Enum):
     COMMITTEE_REVIEW = "Committee Review"
     CONDITIONALLY_RECOMMENDED = "Conditionally Recommended"
     NOT_RECOMMENDED = "Not Recommended"
+
+
+class RecommendationStatus(str, Enum):
+    """AI-derived recommendation status stored on every assessment record.
+
+    Thresholds (overall_score is 0-30):
+        >= 21  ->  recommended   (70 %)
+        >= 15  ->  review        (50 %)
+        <  15  ->  rejected
+    """
+
+    RECOMMENDED = "recommended"
+    REVIEW = "review"
+    REJECTED = "rejected"
+

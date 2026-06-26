@@ -277,7 +277,7 @@ def test_evaluate_startup_with_ai_returns_evaluation_output():
     assert result.innovation_score == 8
     assert result.market_score == 7
     assert result.execution_score == 6
-    assert result.overall_score == 21
+    assert result.overall_score == 70
     assert result.executive_summary == "A strong AI startup addressing grid storage."
     assert "Clear solution" in result.strengths
     assert "No traction data" in result.weaknesses
@@ -371,7 +371,7 @@ def test_assess_startup_ai_evaluation_field_is_populated():
     assert result.ai_evaluation.innovation_score == 8
     assert result.ai_evaluation.market_score == 7
     assert result.ai_evaluation.execution_score == 6
-    assert result.ai_evaluation.overall_score == 21
+    assert result.ai_evaluation.overall_score == 70
 
 
 def test_assess_startup_contains_all_three_components():
