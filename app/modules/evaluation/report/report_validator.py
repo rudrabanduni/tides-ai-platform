@@ -12,13 +12,12 @@ class ReportValidator:
         if not report:
             return errors
 
-        # List of required section fields
+        # List of required section fields (11 structured sections)
         required_sections = [
-            "executive_summary", "investment_summary", "founder_analysis",
-            "product_analysis", "trl_analysis", "market_analysis",
-            "competition_analysis", "financial_analysis", "ip_analysis",
-            "risk_analysis", "observations", "risks", "conflicts",
-            "resolutions", "missing_information", "follow_up_questions"
+            "executive_summary", "investment_recommendation", "founder_assessment",
+            "product_technology", "market_opportunity", "business_model",
+            "competition", "financial_overview", "risks",
+            "investment_thesis", "follow_up_questions"
         ]
 
         # 1. Report Completeness Check

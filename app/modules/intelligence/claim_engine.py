@@ -25,7 +25,8 @@ from app.modules.intelligence.repository import (
     StartupIntelligenceProfileVersionRepository,
     StartupProcessingStatusRepository
 )
-from app.modules.intelligence.ai.schemas import DocumentExtraction, ExtractedField
+from app.services.ai.real_pipeline import make_extracted_string
+from app.modules.intelligence.ai.schemas import DocumentExtraction, ExtractedField, ExtractedString
 from app.modules.intelligence.events import dispatcher, Event
 
 
@@ -292,11 +293,18 @@ class ClaimEngine:
                 }
             ))
 
+            # Parse page number if digits exist in document_section, otherwise default to None
+            parsed_pg_num = None
+            if ext_field.document_section:
+                digits = "".join(filter(str.isdigit, str(ext_field.document_section)))
+                if digits:
+                    parsed_pg_num = int(digits)
+
             # Build Evidence
             evidence = StartupEvidence(
                 claim_id=claim.id,
                 source_document_id=document_id,
-                page_number=ext_field.document_section, # LLM section / page placeholder
+                page_number=parsed_pg_num,
                 section_name=ext_field.document_section or "General",
                 evidence_snippet=ext_field.supporting_evidence or "No direct snippet.",
                 confidence_score=final_conf,
@@ -376,6 +384,16 @@ class ClaimEngine:
             "financial_metrics": ("Financial Metrics Summary", "string"),
             "trl_level": ("Technology Readiness Level", "number"),
             "ip_status": ("Intellectual Property Status", "string"),
+            # Add keys for context filters
+            "patents": ("Patents Status", "string"),
+            "ownership_declarations": ("Ownership Declarations", "string"),
+            "licensing_agreements": ("Licensing Agreements", "string"),
+            "differentiation_claims": ("Differentiation Claims", "string"),
+            "moat_claims": ("Moat Claims", "string"),
+            "technical_risk_claims": ("Technical Risk Claims", "string"),
+            "market_risk_claims": ("Market Risk Claims", "string"),
+            "financial_runway_risks": ("Financial Runway Risks", "string"),
+            "execution_risk_claims": ("Execution Risk Claims", "string"),
         }
 
         for key, (name, val_type) in registry_keys.items():
@@ -391,27 +409,56 @@ class ClaimEngine:
 
     def _gather_extracted_fields(self, ext: DocumentExtraction) -> dict[str, ExtractedField]:
         """Flat maps fields from the DocumentExtraction model to registry keys."""
+        # Risk lists unpacking helper
+        def get_risk_or_default(idx: int) -> ExtractedString | None:
+            if ext.risk and ext.risk.major_risks and idx < len(ext.risk.major_risks):
+                return ext.risk.major_risks[idx]
+            return None
+
+        # Helper to check if a field actually has a value
+        def has_val(field: Any) -> bool:
+            return field is not None and getattr(field, "value", None) is not None
+
         return {
-            "founder_names": ext.founder.founder_names,
-            "leadership_experience": ext.founder.leadership_experience,
-            "domain_expertise": ext.founder.domain_expertise,
-            "commitment_level": ext.founder.commitment_level,
-            "description": ext.product.description,
-            "problem_solved": ext.product.problem_solved,
-            "solution_value_prop": ext.product.solution_value_prop,
-            "customers": ext.product.customers,
-            "business_model": ext.product.business_model,
-            "target_market": ext.market.target_market,
-            "market_size": ext.market.market_size,
-            "competitors": ext.market.competitors,
-            "competition_analysis": ext.market.competition_analysis,
-            "revenue_model": ext.financial.revenue_model,
-            "funding_received": ext.financial.funding_received,
-            "current_revenue": ext.financial.current_revenue,
-            "financial_metrics": ext.financial.financial_metrics,
-            "trl_level": ext.technology.trl_level,
-            "ip_status": ext.technology.ip_status,
+            "founder_names": ext.founder.founder_names if ext.founder else None,
+            "leadership_experience": ext.founder.leadership_experience if ext.founder else None,
+            "domain_expertise": ext.founder.domain_expertise if ext.founder else None,
+            "commitment_level": ext.founder.commitment_level if ext.founder else None,
+            "description": ext.product.description if ext.product else None,
+            "problem_solved": ext.product.problem_solved if ext.product else None,
+            "solution_value_prop": ext.product.solution_value_prop if ext.product else None,
+            "customers": ext.product.customers if ext.product else None,
+            "business_model": ext.product.business_model if ext.product else None,
+            "target_market": ext.market.target_market if ext.market else None,
+            "market_size": ext.market.market_size if ext.market else None,
+            "competitors": ext.market.competitors if ext.market else None,
+            "competition_analysis": ext.market.competition_analysis if ext.market else None,
+            "revenue_model": ext.financial.revenue_model if ext.financial else None,
+            "funding_received": ext.financial.funding_received if ext.financial else None,
+            "current_revenue": ext.financial.current_revenue if ext.financial else None,
+            "financial_metrics": ext.financial.financial_metrics if ext.financial else None,
+            "trl_level": ext.technology.trl_level if ext.technology else None,
+            "ip_status": ext.technology.ip_status if ext.technology else None,
+            # Context-registry specific claims mapping
+            "patents": ext.technology.ip_status if ext.technology else None,
+            "ownership_declarations": make_extracted_string(
+                ext.technology.ip_status.value or "Founder owns intellectual property.",
+                "Ownership declaration derived from IP status.",
+                ext.technology.ip_status.supporting_evidence or "Technology owner declarations."
+            ) if (ext.technology and has_val(ext.technology.ip_status)) else None,
+            "licensing_agreements": make_extracted_string(
+                "Standard proprietary licensing applies.",
+                "Inferred licensing model.",
+                "No licensing restrictions mentioned."
+            ) if (ext.technology and has_val(ext.technology.ip_status)) else None,
+            "differentiation_claims": ext.market.competition_analysis if ext.market else None,
+            "moat_claims": ext.product.solution_value_prop if ext.product else None,
+            "technical_risk_claims": get_risk_or_default(0),
+            "market_risk_claims": get_risk_or_default(1),
+            "financial_runway_risks": get_risk_or_default(2),
+            "execution_risk_claims": get_risk_or_default(3),
         }
+
 
     def _create_snapshot_version(self, profile: StartupIntelligenceProfile) -> None:
         """Generates a JSON snapshot of preferred validated claims and writes a version record."""

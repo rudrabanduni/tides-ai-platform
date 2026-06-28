@@ -10,7 +10,7 @@ router = APIRouter(tags=["Reports"])
 @router.get("/reports/{startup_id}")
 def get_report(
     request: Request,
-    startup_id: UUID = Path(...),
+    startup_id: str = Path(...),
     report_service: ReportService = Depends(get_report_service)
 ):
     report = report_service.get_report(startup_id)
@@ -21,7 +21,7 @@ def get_report(
 @router.get("/reports/{startup_id}/download")
 def download_pdf(
     request: Request,
-    startup_id: UUID = Path(...),
+    startup_id: str = Path(...),
     report_service: ReportService = Depends(get_report_service)
 ):
     pdf_bytes = report_service.download_pdf(startup_id)
@@ -36,7 +36,7 @@ def download_pdf(
 @router.get("/reports/{startup_id}/markdown")
 def get_markdown(
     request: Request,
-    startup_id: UUID = Path(...),
+    startup_id: str = Path(...),
     report_service: ReportService = Depends(get_report_service)
 ):
     md_content = report_service.get_markdown(startup_id)

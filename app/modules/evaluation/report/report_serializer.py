@@ -30,11 +30,17 @@ class ReportSerializer:
         md.append("---")
 
         sections = [
-            report.executive_summary, report.investment_summary, report.founder_analysis,
-            report.product_analysis, report.trl_analysis, report.market_analysis,
-            report.competition_analysis, report.financial_analysis, report.ip_analysis,
-            report.risk_analysis, report.observations, report.risks,
-            report.conflicts, report.resolutions, report.missing_information, report.follow_up_questions
+            report.executive_summary,
+            report.investment_recommendation,
+            report.founder_assessment,
+            report.product_technology,
+            report.market_opportunity,
+            report.business_model,
+            report.competition,
+            report.financial_overview,
+            report.risks,
+            report.investment_thesis,
+            report.follow_up_questions
         ]
 
         for idx, sec in enumerate(sections, 1):
@@ -55,11 +61,17 @@ class ReportSerializer:
     def export_html(report: DueDiligenceReport) -> str:
         """Generates a premium styled, responsive HTML layout of the report."""
         sections = [
-            report.executive_summary, report.investment_summary, report.founder_analysis,
-            report.product_analysis, report.trl_analysis, report.market_analysis,
-            report.competition_analysis, report.financial_analysis, report.ip_analysis,
-            report.risk_analysis, report.observations, report.risks,
-            report.conflicts, report.resolutions, report.missing_information, report.follow_up_questions
+            report.executive_summary,
+            report.investment_recommendation,
+            report.founder_assessment,
+            report.product_technology,
+            report.market_opportunity,
+            report.business_model,
+            report.competition,
+            report.financial_overview,
+            report.risks,
+            report.investment_thesis,
+            report.follow_up_questions
         ]
 
         # Form the table of contents and content sections
@@ -325,23 +337,139 @@ class ReportSerializer:
 
         # Content Sections
         sections = [
-            report.executive_summary, report.investment_summary, report.founder_analysis,
-            report.product_analysis, report.trl_analysis, report.market_analysis,
-            report.competition_analysis, report.financial_analysis, report.ip_analysis,
-            report.risk_analysis, report.observations, report.risks,
-            report.conflicts, report.resolutions, report.missing_information, report.follow_up_questions
+            report.executive_summary,
+            report.investment_recommendation,
+            report.founder_assessment,
+            report.product_technology,
+            report.market_opportunity,
+            report.business_model,
+            report.competition,
+            report.financial_overview,
+            report.risks,
+            report.investment_thesis,
+            report.follow_up_questions
         ]
 
         for sec in sections:
             story.append(Paragraph(sec.title, h1_style))
             story.append(Paragraph(f"Confidence: {sec.confidence:.2f}", h2_style))
+            story.append(Spacer(1, 5))
             
-            for p_text in sec.content.split('\n'):
-                p_text = p_text.strip()
-                if p_text:
-                    p_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', p_text)
-                    p_text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', p_text)
-                    story.append(Paragraph(p_text, body_style))
+            lines = sec.content.split('\n')
+            in_table = False
+            table_data = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("[FOUNDER_TABLE]") or line.startswith("[RISK_TABLE]"):
+                    in_table = True
+                    table_data = []
+                    continue
+                if line.startswith("[/FOUNDER_TABLE]") or line.startswith("[/RISK_TABLE]"):
+                    in_table = False
+                    if table_data:
+                        from reportlab.platypus import Table, TableStyle
+                        col_widths = [80, 80, 100, 100, 100, 44] if len(table_data[0]) == 6 else [160, 60, 60, 140, 84]
+                        wrapped_data = []
+                        for row_idx, row in enumerate(table_data):
+                            row_cells = []
+                            for cell in row:
+                                style = body_style
+                                if row_idx == 0:
+                                    style = ParagraphStyle(
+                                        'TableHeader', parent=styles['Normal'],
+                                        fontSize=8.5, leading=11,
+                                        textColor=colors.HexColor('#FFFFFF'), fontName='Helvetica-Bold'
+                                    )
+                                cell_p = Paragraph(cell, style)
+                                row_cells.append(cell_p)
+                            wrapped_data.append(row_cells)
+                            
+                        t = Table(wrapped_data, colWidths=col_widths)
+                        t.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
+                            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+                            ('TOPPADDING', (0,0), (-1,-1), 5),
+                            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                            ('LEFTPADDING', (0,0), (-1,-1), 5),
+                            ('RIGHTPADDING', (0,0), (-1,-1), 5),
+                        ]))
+                        story.append(t)
+                        story.append(Spacer(1, 8))
+                    continue
+                
+                if in_table:
+                    cells = [c.strip() for c in line.split('|')]
+                    if any(c.startswith('---') or c.startswith(':---') for c in cells):
+                        continue
+                    table_data.append(cells)
+                elif "|" in line and not line.startswith("["):
+                    cells = [c.strip() for c in line.split('|')]
+                    if any(c.startswith('---') or c.startswith(':---') for c in cells):
+                        continue
+                    cells = [c for c in cells if c]
+                    if cells:
+                        if not table_data:
+                            table_data = [cells]
+                        else:
+                            table_data.append(cells)
+                else:
+                    if table_data and not in_table:
+                        from reportlab.platypus import Table, TableStyle
+                        col_count = len(table_data[0])
+                        col_widths = [150] * col_count
+                        if col_count == 3:
+                            col_widths = [120, 100, 280]
+                        elif col_count == 2:
+                            col_widths = [150, 350]
+                            
+                        wrapped_data = []
+                        for row_idx, row in enumerate(table_data):
+                            row_cells = []
+                            for cell in row:
+                                style = body_style
+                                if row_idx == 0:
+                                    style = ParagraphStyle(
+                                        'TableHeaderInline', parent=styles['Normal'],
+                                        fontSize=8.5, leading=11,
+                                        textColor=colors.HexColor('#FFFFFF'), fontName='Helvetica-Bold'
+                                    )
+                                cell = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', cell)
+                                cell = re.sub(r'\*(.*?)\*', r'<i>\1</i>', cell)
+                                row_cells.append(Paragraph(cell, style))
+                            wrapped_data.append(row_cells)
+                            
+                        t = Table(wrapped_data, colWidths=col_widths)
+                        t.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#475569')),
+                            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+                            ('TOPPADDING', (0,0), (-1,-1), 4),
+                            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                        ]))
+                        story.append(t)
+                        story.append(Spacer(1, 8))
+                        table_data = []
+                    
+                    if line.startswith("[METRICS]") or line.startswith("[/METRICS]"):
+                        continue
+                    if line.startswith("### "):
+                        story.append(Spacer(1, 6))
+                        story.append(Paragraph(line.replace("### ", ""), h2_style))
+                    elif line.startswith("* "):
+                        line_text = line.replace("* ", "")
+                        line_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', line_text)
+                        line_text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', line_text)
+                        story.append(Paragraph(f"&bull; {line_text}", body_style))
+                    else:
+                        line_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', line)
+                        line_text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', line_text)
+                        story.append(Paragraph(line_text, body_style))
             story.append(Spacer(1, 10))
 
         # Appendices

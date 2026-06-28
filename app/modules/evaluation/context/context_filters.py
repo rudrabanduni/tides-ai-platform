@@ -62,27 +62,105 @@ class FounderContextFilter(BaseContextFilter):
 # --- Empty Placeholders for Future Experts ---
 
 class ProductContextFilter(BaseContextFilter):
-    def filter_claims(self, claims: list[Any]) -> list[Any]: return []
-    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]: return []
-    def get_required_fields(self) -> list[str]: return []
+    PRODUCT_FIELDS = {
+        "description", "problem_solved", "solution_value_prop",
+        "customers", "business_model", "scalability", "product_roadmap"
+    }
+
+    def filter_claims(self, claims: list[Any]) -> list[Any]:
+        filtered = []
+        for claim in claims:
+            fk = claim.field.field_key if (hasattr(claim, "field") and claim.field) else None
+            if fk in self.PRODUCT_FIELDS:
+                filtered.append(claim)
+        return filtered
+
+    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]:
+        filtered = []
+        for conflict in conflicts:
+            fk = conflict.field.field_key if (hasattr(conflict, "field") and conflict.field) else None
+            if fk in self.PRODUCT_FIELDS:
+                filtered.append(conflict)
+        return filtered
+
+    def get_required_fields(self) -> list[str]:
+        return ["description", "problem_solved", "solution_value_prop"]
 
 
 class TRLContextFilter(BaseContextFilter):
-    def filter_claims(self, claims: list[Any]) -> list[Any]: return []
-    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]: return []
-    def get_required_fields(self) -> list[str]: return []
+    TRL_FIELDS = {
+        "trl_level", "technology_readiness"
+    }
+
+    def filter_claims(self, claims: list[Any]) -> list[Any]:
+        filtered = []
+        for claim in claims:
+            fk = claim.field.field_key if (hasattr(claim, "field") and claim.field) else None
+            if fk in self.TRL_FIELDS:
+                filtered.append(claim)
+        return filtered
+
+    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]:
+        filtered = []
+        for conflict in conflicts:
+            fk = conflict.field.field_key if (hasattr(conflict, "field") and conflict.field) else None
+            if fk in self.TRL_FIELDS:
+                filtered.append(conflict)
+        return filtered
+
+    def get_required_fields(self) -> list[str]:
+        return ["trl_level"]
 
 
 class FinancialContextFilter(BaseContextFilter):
-    def filter_claims(self, claims: list[Any]) -> list[Any]: return []
-    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]: return []
-    def get_required_fields(self) -> list[str]: return []
+    FINANCIAL_FIELDS = {
+        "revenue_model", "funding_received", "current_revenue", "financial_metrics"
+    }
+
+    def filter_claims(self, claims: list[Any]) -> list[Any]:
+        filtered = []
+        for claim in claims:
+            fk = claim.field.field_key if (hasattr(claim, "field") and claim.field) else None
+            if fk in self.FINANCIAL_FIELDS:
+                filtered.append(claim)
+        return filtered
+
+    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]:
+        filtered = []
+        for conflict in conflicts:
+            fk = conflict.field.field_key if (hasattr(conflict, "field") and conflict.field) else None
+            if fk in self.FINANCIAL_FIELDS:
+                filtered.append(conflict)
+        return filtered
+
+    def get_required_fields(self) -> list[str]:
+        return ["revenue_model", "funding_received"]
 
 
 class MarketContextFilter(BaseContextFilter):
-    def filter_claims(self, claims: list[Any]) -> list[Any]: return []
-    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]: return []
-    def get_required_fields(self) -> list[str]: return []
+    MARKET_FIELDS = {
+        "target_market", "market_size", "demographics"
+    }
+
+    def filter_claims(self, claims: list[Any]) -> list[Any]:
+        filtered = []
+        for claim in claims:
+            fk = claim.field.field_key if (hasattr(claim, "field") and claim.field) else None
+            if fk in self.MARKET_FIELDS:
+                filtered.append(claim)
+        return filtered
+
+    def filter_conflicts(self, conflicts: list[Any]) -> list[Any]:
+        filtered = []
+        for conflict in conflicts:
+            fk = conflict.field.field_key if (hasattr(conflict, "field") and conflict.field) else None
+            if fk in self.MARKET_FIELDS:
+                filtered.append(conflict)
+        return filtered
+
+    def get_required_fields(self) -> list[str]:
+        return ["target_market", "market_size"]
+
 
 
 class CompetitionContextFilter(BaseContextFilter):

@@ -75,16 +75,32 @@ class VersionEngine:
             with open(index_path, "w", encoding="utf-8") as f:
                 f.write(index_serialized)
 
+        # Update/warm memory cache to keep in-memory index in sync with disk index
+        if not hasattr(VersionEngine, "_index_cache"):
+            VersionEngine._index_cache = {}
+        VersionEngine._index_cache[startup_id] = list(existing_versions)
+
     @staticmethod
     def list_versions(startup_id: str) -> List[StartupVersion]:
-        """Lists metadata versions for a startup from the fast index file (under 20ms lookup target)."""
+        """Lists metadata versions for a startup from the fast index file (under 20ms lookup target).
+        
+        Uses an in-memory class-level cache (`_index_cache`) to satisfy fast O(1) queries under load.
+        """
+        # Read from class-level memory cache if available
+        if hasattr(VersionEngine, "_index_cache") and startup_id in VersionEngine._index_cache:
+            return VersionEngine._index_cache[startup_id]
+            
         index_path = VersionEngine._get_index_path(startup_id)
         if not os.path.exists(index_path):
             return []
         try:
             with open(index_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return [StartupVersion(**item) for item in data]
+                res = [StartupVersion(**item) for item in data]
+                if not hasattr(VersionEngine, "_index_cache"):
+                    VersionEngine._index_cache = {}
+                VersionEngine._index_cache[startup_id] = res
+                return res
         except Exception:
             return []
 
@@ -232,7 +248,7 @@ class VersionEngine:
             startup_id=startup_id,
             startup_name=graph_data.get("startup_name") or "Unknown Startup",
             version_number=next_ver,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             created_by=actor,
             graph_hash=graph_data.get("graph_hash") or "N/A",
             workflow_id=workflow_id,
@@ -407,7 +423,7 @@ class VersionEngine:
             transition_id = f"RB-REST-{str(uuid.uuid4())[:8].upper()}"
             restored_wf.previous_state = restored_wf.current_state
             restored_wf.last_modified_by = actor
-            restored_wf.updated_at = datetime.utcnow()
+            restored_wf.updated_at = datetime.now(timezone.utc)
             
             register_workflow(restored_wf)
             
@@ -417,7 +433,7 @@ class VersionEngine:
                 role=role,
                 previous_state=restored_wf.previous_state,
                 new_state=restored_wf.current_state,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 reason=f"ROLLBACK to version V{version_number}: {reason}",
                 audit_reference=f"audit:{transition_id}"
             )

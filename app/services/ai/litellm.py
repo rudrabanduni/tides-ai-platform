@@ -17,6 +17,9 @@ _RETRYABLE_ERROR_NAMES = (
     "APIConnectionError",
 )
 
+# Drop unsupported params (e.g. response_format on Anthropic) silently
+litellm.drop_params = True
+
 
 def _is_retryable(exc: Exception) -> bool:
     cls_name = type(exc).__name__
@@ -53,8 +56,22 @@ class LiteLLMGateway:
     ) -> AICompletionResult[T]:
         started = time.perf_counter()
 
+        # Inject the JSON schema into the system prompt so providers that do not
+        # support response_format (e.g. Anthropic) still produce valid JSON.
+        schema_json = json.dumps(
+            response_model.model_json_schema(), indent=2, ensure_ascii=False
+        )
+        augmented_system = (
+            f"{request.system_prompt}\n\n"
+            "OUTPUT FORMAT:\n"
+            "You MUST respond with a single valid JSON object that conforms exactly to the "
+            "following JSON Schema. Do not include any explanation, markdown fences, or prose "
+            "before or after the JSON object.\n\n"
+            f"```json-schema\n{schema_json}\n```"
+        )
+
         messages = [
-            {"role": "system", "content": request.system_prompt},
+            {"role": "system", "content": augmented_system},
             {"role": "user", "content": request.user_prompt},
         ]
 
@@ -89,9 +106,21 @@ class LiteLLMGateway:
             choice = response.choices[0]
             raw_text = choice.message.content or ""
 
-            # Fallback if raw content is empty but tool_calls exist (used by some LiteLLM routers for json schema)
+            # Fallback if raw content is empty but tool_calls exist
             if not raw_text and hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
                 raw_text = choice.message.tool_calls[0].function.arguments
+
+            # Strip markdown fences if present
+            stripped = raw_text.strip()
+            if stripped.startswith("```"):
+                # Remove opening fence (```json or similar) and closing fence
+                lines = stripped.splitlines()
+                # Drop first line (```json) and last line (```)
+                inner_lines = lines[1:] if lines[0].startswith("```") else lines
+                if inner_lines and inner_lines[-1].strip() == "```":
+                    inner_lines = inner_lines[:-1]
+                stripped = "\n".join(inner_lines).strip()
+            raw_text = stripped
 
             # Parse raw text as JSON first to catch JSONDecodeErrors separately
             try:

@@ -61,6 +61,14 @@ class AgentAssessment(BaseModel):
     reasoning: str = Field(..., description="Overall domain analysis reasoning block")
     missing_evidence: list[MissingEvidence] = Field(default_factory=list, description="List of missing evidence requests")
     
+    # Explicit VC assessment fields:
+    executive_conclusion: str = Field("", description="Executive conclusion statement")
+    strengths: list[str] = Field(default_factory=list, description="List of domain strengths")
+    weaknesses: list[str] = Field(default_factory=list, description="List of domain weaknesses")
+    investment_implication: str = Field("", description="Investment implication statement")
+    missing_information: list[str] = Field(default_factory=list, description="List of missing information items")
+    follow_up_questions: list[str] = Field(default_factory=list, description="List of follow-up questions")
+    
     # Metadata fields
     prompt_name: str = Field(..., description="Name of the prompt used")
     prompt_version: str = Field(..., description="Version of the prompt used")

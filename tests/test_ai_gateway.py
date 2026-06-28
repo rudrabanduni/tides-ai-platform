@@ -172,10 +172,20 @@ def test_litellm_gateway_success(mock_completion) -> None:
     assert result.metadata.prompt_version == "v1"
 
     # Verify litellm.completion call parameters
+    import json
+    schema_json = json.dumps(SampleAgentOutput.model_json_schema(), indent=2, ensure_ascii=False)
+    expected_system = (
+        "System instructions\n\n"
+        "OUTPUT FORMAT:\n"
+        "You MUST respond with a single valid JSON object that conforms exactly to the "
+        "following JSON Schema. Do not include any explanation, markdown fences, or prose "
+        "before or after the JSON object.\n\n"
+        f"```json-schema\n{schema_json}\n```"
+    )
     mock_completion.assert_called_once_with(
         model="claude-3-5-sonnet-20241022",
         messages=[
-            {"role": "system", "content": "System instructions"},
+            {"role": "system", "content": expected_system},
             {"role": "user", "content": "User input"},
         ],
         response_format=SampleAgentOutput,

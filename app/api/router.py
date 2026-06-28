@@ -16,6 +16,13 @@ from app.modules.users.routes import router as users_router
 from app.modules.intelligence.routes import router as intelligence_router
 from app.modules.apikeys.routes import router as apikeys_router
 
+# Root level api routers
+from app.api.routers.evaluation import router as evaluation_router
+from app.api.routers.graph import router as graph_router
+from app.api.routers.reports import router as reports_router
+from app.api.routers.portfolio import router as portfolio_router
+from app.api.routers.committee import router as committee_router
+
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
@@ -32,6 +39,13 @@ api_router.include_router(audit_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(intelligence_router)
 api_router.include_router(apikeys_router)
+
+# Include newly exposed api endpoints under /api/v1
+api_router.include_router(evaluation_router)
+api_router.include_router(graph_router)
+api_router.include_router(reports_router)
+api_router.include_router(portfolio_router)
+api_router.include_router(committee_router)
 
 
 

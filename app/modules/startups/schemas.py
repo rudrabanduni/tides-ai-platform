@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.core.enums import StartupStatus
 
@@ -63,6 +63,10 @@ class StartupRead(BaseModel):
     submitted_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    def status(self) -> str:
+        return self.current_status.value if hasattr(self.current_status, "value") else str(self.current_status)
 
 
 class StartupStatusHistoryRead(BaseModel):

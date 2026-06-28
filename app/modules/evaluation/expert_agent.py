@@ -128,13 +128,18 @@ class ExpertAgent(ABC):
         prompt_data = PromptManager.load_prompt(domain=self.get_domain_key(), version="latest")
         system_prompt = prompt_data["system_prompt"]
         context_str = self.generate_reasoning(profile, claims_to_use, evidence_to_use, conflicts_to_use, metadata)
-        user_prompt = prompt_data["user_prompt"].format(context=context_str)
+        company_name = ""
+        if hasattr(profile, "startup") and profile.startup:
+            company_name = getattr(profile.startup, "startup_name", "")
+        if not company_name:
+            company_name = getattr(profile, "company_name", getattr(profile, "name", "")) or ""
+        user_prompt = f"Company Name: {company_name}\n\n" + prompt_data["user_prompt"].format(context=context_str)
         
         request = AICompletionRequest(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             prompt_version=prompt_data["prompt_version"],
-            metadata={"domain": "evaluation"}
+            metadata={"domain": self.get_domain_key()}
         )
         
         res = self.gateway.complete_json(request, response_model=AgentAssessment)

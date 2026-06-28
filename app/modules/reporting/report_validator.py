@@ -1,7 +1,7 @@
-from typing import Dict, List
+from typing import Dict, List, Any
 import json
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType
-from app.modules.reporting.report_models import Report
+from app.modules.reporting.report_models import Report, DueDiligenceReport
 from app.modules.reporting.report_builder import ReportBuilder
 
 
@@ -14,11 +14,119 @@ class ReportValidator:
     """Validates Report completeness, referential integrity, and serialization correctness."""
 
     @staticmethod
-    def validate_report(report: Report, graph: ObservationGraph) -> Dict[str, List[str]]:
+    def validate_report(report: Any, graph: ObservationGraph) -> Dict[str, List[str]]:
+        if isinstance(report, DueDiligenceReport):
+            return ReportValidator.validate_due_diligence_report(report, graph)
+        elif isinstance(report, Report):
+            return ReportValidator.validate_legacy_report(report, graph)
+        else:
+            if hasattr(report, "founder_assessment"):
+                return ReportValidator.validate_due_diligence_report(report, graph)
+            return ReportValidator.validate_legacy_report(report, graph)
+
+    @staticmethod
+    def validate_due_diligence_report(report: DueDiligenceReport, graph: ObservationGraph) -> Dict[str, List[str]]:
         errors: List[str] = []
         warnings: List[str] = []
 
-        # 1. Required sections exist
+        # 1. No empty required sections
+        required_fields = [
+            "executive_summary",
+            "founder_assessment",
+            "product_assessment",
+            "market_assessment",
+            "competition_assessment",
+            "trl_assessment",
+            "financial_assessment",
+            "ip_assessment",
+            "risk_assessment",
+            "investment_assessment"
+        ]
+
+        for field in required_fields:
+            val = getattr(report, field, None)
+            if val is None:
+                errors.append(f"Missing Section: '{field}' is null")
+            elif isinstance(val, str):
+                if not val.strip():
+                    errors.append(f"Empty Section: '{field}' is empty")
+            else:
+                # ReportSection validation
+                if not val.summary.strip():
+                    errors.append(f"Empty Summary: Section '{field}' summary is empty")
+                if not val.observations and not val.strengths:
+                    warnings.append(f"Empty Content: Section '{field}' has no observations or strengths")
+
+        # 2. Every section has traceability
+        for field in required_fields:
+            val = getattr(report, field, None)
+            if val and not isinstance(val, str):
+                # We expect supporting_evidence and observations to be populated
+                if not val.observations and not val.supporting_evidence:
+                    warnings.append(f"Traceability warning: Section '{field}' has no traced observations or evidence")
+
+        if not report.traceability or "graph_hash" not in report.traceability:
+            errors.append("Missing Traceability: Report has no overall traceability metadata")
+
+        # 3. No duplicate observations
+        all_obs_ids = []
+        for field in required_fields:
+            val = getattr(report, field, None)
+            if val and not isinstance(val, str):
+                for o in val.observations:
+                    obs_id = o.get("id")
+                    if obs_id:
+                        all_obs_ids.append(obs_id)
+        
+        seen_obs = set()
+        duplicates = set()
+        for oid in all_obs_ids:
+            if oid in seen_obs:
+                duplicates.add(oid)
+            seen_obs.add(oid)
+            
+        if duplicates:
+            errors.append(f"Duplicate Observations: Observations {list(duplicates)} are repeated across sections")
+
+        # 4. No missing references
+        # Checks if any referenced Observation ID, Claim ID, or Evidence ID in the report actually exists in the ObservationGraph
+        for field in required_fields:
+            val = getattr(report, field, None)
+            if val and not isinstance(val, str):
+                for o in val.observations:
+                    oid = o.get("id")
+                    if oid and oid not in graph.observations:
+                        errors.append(f"Missing Reference: Observation ID '{oid}' referenced in section '{field}' is missing from graph")
+                for ev in val.supporting_evidence:
+                    eid = ev.get("id")
+                    if eid and eid not in graph.evidence:
+                        errors.append(f"Missing Reference: Evidence ID '{eid}' referenced in section '{field}' is missing from graph")
+
+        # 5. Every recommendation backed by evidence
+        # Every recommendation in sections should correspond to a domain which has active observations/evidence
+        for field in required_fields:
+            val = getattr(report, field, None)
+            if val and not isinstance(val, str):
+                if val.recommendations and not val.supporting_evidence and not val.observations:
+                    errors.append(f"Unbacked Recommendations: Section '{field}' contains recommendations but has no supporting evidence/observations")
+
+        # 6. Graph hash matches
+        if report.graph_hash != graph.graph_hash:
+            errors.append(f"Invalid Graph Hash: Report graph_hash '{report.graph_hash}' does not match graph's hash '{graph.graph_hash}'")
+
+        # 7. Check overall report hash matches
+        report_dict = report.model_dump()
+        recomputed_hash = ReportBuilder._compute_hash(report_dict)
+        if report.report_hash != recomputed_hash:
+            errors.append(f"Invalid Report Hash: Report hash '{report.report_hash}' does not match recomputed hash '{recomputed_hash}'")
+
+        return {"errors": errors, "warnings": warnings}
+
+    @staticmethod
+    def validate_legacy_report(report: Report, graph: ObservationGraph) -> Dict[str, List[str]]:
+        errors: List[str] = []
+        warnings: List[str] = []
+
         required_fields = [
             "executive_summary",
             "founder_analysis",
@@ -43,28 +151,23 @@ class ReportValidator:
             elif "has not been compiled" in val.lower():
                 warnings.append(f"Incomplete Section: Section '{field}' contains compilation stubs")
 
-        # 2. Executive summary exists
         if "has not been compiled" in report.executive_summary.lower():
             errors.append("Missing Executive Summary: Executive Assessment is missing or not compiled")
 
-        # 3. Committee section exists
         if "has not been compiled" in report.committee_decision.lower():
             errors.append("Missing Committee Decision: Committee Decision is missing or not compiled")
 
-        # 4. Report hash is valid
         report_dict = report.model_dump() if hasattr(report, "model_dump") else report.__dict__.copy()
         recomputed = ReportBuilder._compute_hash(report_dict)
         if report.report_hash != recomputed:
             errors.append(f"Invalid Report Hash: Report hash '{report.report_hash}' does not match recomputed hash '{recomputed}'")
 
-        # 5. Metadata is complete
         meta = report.metadata
         required_meta = ["graph_hash", "graph_version", "active_risks_count", "total_evidence_referenced"]
         for key in required_meta:
             if key not in meta:
                 errors.append(f"Incomplete Metadata: Missing metadata key '{key}'")
 
-        # Determine suppressed/active observations
         suppressed_obs = set()
         for res in graph.resolutions.values():
             if res.preferred_observation_id:
@@ -128,7 +231,6 @@ class ReportValidator:
 
         # 8. No orphan references (check references exist in graph)
         for o in active_obs:
-            # We check if observation_id is mentioned in any of the analysis/appendix sections
             in_sections = False
             for field in required_fields:
                 if o.observation_id in getattr(report, field, ""):
@@ -143,7 +245,6 @@ class ReportValidator:
             deserialized_dict = json.loads(serialized)
             rebuilt = Report(**deserialized_dict)
             rebuilt_dict = rebuilt.model_dump() if hasattr(rebuilt, "model_dump") else rebuilt.__dict__.copy()
-            # Compare key fields to ignore minor dict/list ordering differences
             for k in required_fields + ["report_id", "startup_id", "startup_name", "generated_at", "report_version", "report_hash"]:
                 if rebuilt_dict.get(k) != report_dict.get(k):
                     errors.append(f"Serialization Error: Section '{k}' mismatch after round-trip serialization")
@@ -153,7 +254,7 @@ class ReportValidator:
         return {"errors": errors, "warnings": warnings}
 
     @staticmethod
-    def validate_and_raise(report: Report, graph: ObservationGraph) -> None:
-        result = ReportValidator.validate_report(report, graph)
-        if result["errors"]:
-            raise ReportValidationError(f"Report validation failed: {'; '.join(result['errors'])}")
+    def validate_and_raise(report: Any, graph: ObservationGraph) -> None:
+        res = ReportValidator.validate_report(report, graph)
+        if res["errors"]:
+            raise ReportValidationError(f"Report validation failed with {len(res['errors'])} errors: {res['errors']}")

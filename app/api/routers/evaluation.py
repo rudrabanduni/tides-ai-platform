@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, BackgroundTasks, status, Path
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, status, Path, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from uuid import UUID
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.api.responses import make_response
 from app.api.dependencies import get_evaluation_service, EvaluationService
 from app.modules.evaluation.graph.graph_serializer import to_json as graph_to_json
+from app.modules.ai.orchestrator.pipeline import coordinate_evaluation_pipeline
 
 router = APIRouter(tags=["Evaluation"])
 
@@ -72,4 +73,27 @@ def get_evaluation_result(
         data=graph_dict,
         message="Evaluation graph retrieved successfully",
         metadata=metadata
+    )
+
+
+@router.post("/evaluate-startup", status_code=status.HTTP_201_CREATED)
+async def evaluate_startup_end_to_end(
+    request: Request,
+    startup_name: str = Form(...),
+    sector: str = Form("SaaS"),
+    stage: str = Form("Pre-Seed"),
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
+    result = await coordinate_evaluation_pipeline(
+        db=db,
+        startup_name=startup_name,
+        sector=sector,
+        stage=stage,
+        files=files
+    )
+    return make_response(
+        request,
+        data=result,
+        message="Startup evaluated successfully end-to-end"
     )

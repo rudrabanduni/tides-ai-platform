@@ -176,6 +176,17 @@ class ObservationGraph:
         self.category: str = ""
         self.committee_decision: Optional[Any] = None
 
+        # ── PRIMARY REPORT GENERATION LAYER ──────────────────────────────────
+        # Full AgentAssessment objects keyed by domain (e.g. "founder",
+        # "product", "market", "financial", "trl", "competition", "ip", "risk").
+        # These are the authoritative source for report prose.
+        # ObservationGraph nodes are the traceability / citation layer only.
+        self.domain_assessments: dict = {}
+
+        # Raw startup profile stored for structured factual lookups
+        # (startup name, sector, stage, funding ask etc.)
+        self.startup_profile: Any = None
+
 
 
     def get_node(self, node_id: str) -> GraphNode | None:

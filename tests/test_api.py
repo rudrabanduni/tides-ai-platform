@@ -231,7 +231,7 @@ def test_pagination_filtering_and_sorting():
     s3 = client.post("/startups", json={"startup_name": "Gamma Inc", "sector": "SaaS"}).json()["data"]["id"]
 
     # Test sorting (+name)
-    response = client.get("/startups?sorting=+startup_name")
+    response = client.get("/startups?sorting=+startup_name&limit=100")
     names = [s["startup_name"] for s in response.json()["data"]["items"]]
     # Verify sorting
     assert "Alpha Inc" in names

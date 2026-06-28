@@ -1,4 +1,6 @@
-from app.modules.reporting.report_models import Report
+from app.modules.reporting.report_models import (
+    Report, DueDiligenceReport, ReportSection, RiskMatrixItem, RiskMatrix, InvestmentSummarySection
+)
 from app.modules.reporting.report_builder import ReportBuilder
 from app.modules.reporting.report_renderer import (
     ReportRenderer,
@@ -8,6 +10,7 @@ from app.modules.reporting.report_renderer import (
 )
 from app.modules.reporting.report_validator import ReportValidator, ReportValidationError
 from app.modules.reporting.report_serializer import ReportSerializer
+from app.modules.reporting.report_exporter import ReportExporter
 from app.modules.reporting.report_queries import (
     register_report,
     get_report,
@@ -19,6 +22,11 @@ from app.modules.reporting.report_queries import (
 
 __all__ = [
     "Report",
+    "DueDiligenceReport",
+    "ReportSection",
+    "RiskMatrixItem",
+    "RiskMatrix",
+    "InvestmentSummarySection",
     "ReportBuilder",
     "ReportRenderer",
     "MarkdownRenderer",
@@ -27,6 +35,7 @@ __all__ = [
     "ReportValidator",
     "ReportValidationError",
     "ReportSerializer",
+    "ReportExporter",
     "register_report",
     "get_report",
     "get_latest_report",

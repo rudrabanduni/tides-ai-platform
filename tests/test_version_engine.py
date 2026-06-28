@@ -428,11 +428,11 @@ def test_delta_generation(db_session, sample_startup, setup_intelligence_profile
     graph2 = create_test_graph_node(startup_id, sample_startup.startup_name, trl_score=6)
     # Add new observation under market domain
     obs3 = ObservationNode(
-        node_id="obs-3", node_type=NodeType.OBSERVATION,
-        observation_id="obs-3", domain="market",
+        node_id="obs-999", node_type=NodeType.OBSERVATION,
+        observation_id="obs-999", domain="market",
         observation="Large market size potential", confidence=0.8
     )
-    graph2.observations["obs-3"] = obs3
+    graph2.observations["obs-999"] = obs3
 
     # Add a risk
     r1 = RiskNode(

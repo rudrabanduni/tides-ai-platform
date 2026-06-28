@@ -1,7 +1,7 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List
 from app.modules.evaluation.graph.graph_models import (
     ObservationGraph, DocumentNode, EvidenceNode, ClaimNode,
@@ -30,7 +30,7 @@ class ObservationGraphBuilder:
         graph.graph_id = graph.startup_id
         graph.startup_name = str(getattr(profile, "startup_name", getattr(profile, "name", f"Startup-{graph.graph_id[:8]}")))
         graph.category = str(getattr(profile, "sector", getattr(profile, "category", "Unknown")))
-        graph.created_at = datetime.utcnow().isoformat() + "Z"
+        graph.created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         graph.graph_version = "1.0.0"
 
         # 1. Populate Documents (either from profile or inferred from evidence)
@@ -43,7 +43,7 @@ class ObservationGraphBuilder:
                     document_id=str(doc.id),
                     document_name=getattr(doc, "document_name", f"Doc-{doc.id}"),
                     document_type=getattr(doc, "document_type", "Unknown"),
-                    uploaded_at=getattr(doc, "uploaded_at", datetime.utcnow())
+                    uploaded_at=getattr(doc, "uploaded_at", datetime.now(timezone.utc))
                 )
                 graph.documents[doc_node.node_id] = doc_node
                 doc_ids.add(doc_node.node_id)
@@ -58,7 +58,7 @@ class ObservationGraphBuilder:
                     document_id=doc_id,
                     document_name=f"Inferred Doc {doc_id}",
                     document_type="Unknown",
-                    uploaded_at=datetime.utcnow()
+                    uploaded_at=datetime.now(timezone.utc)
                 )
                 graph.documents[doc_id] = doc_node
 
@@ -126,6 +126,11 @@ class ObservationGraphBuilder:
                 graph.in_edges.setdefault(str(ev.id), []).append(edge)
 
         # 4. Populate Assessment output nodes (Assessments, Observations, Risks, Questions)
+        # Also preserve full AgentAssessment objects in domain_assessments for report generation.
+        
+        # Store the startup profile for structured factual lookups by the report engine
+        graph.startup_profile = profile
+        
         for asm in assessments or []:
             asm_id = str(getattr(asm, "assessment_id", f"ASM-{asm.domain.upper()}"))
             
@@ -138,9 +143,16 @@ class ObservationGraphBuilder:
                 agent_version=getattr(asm, "agent_version", "1.0.0"),
                 prompt_version=getattr(asm, "prompt_version", "1.0.0"),
                 confidence=getattr(asm.confidence, "overall_domain_confidence", getattr(asm, "confidence", 1.0)),
-                generated_at=getattr(asm, "generated_at", datetime.utcnow())
+                generated_at=getattr(asm, "generated_at", datetime.now(timezone.utc))
             )
             graph.assessments[asm_id] = asm_node
+
+            # ── PRIMARY PRESERVATION: store full AgentAssessment object ──────
+            # This is the authoritative source for report prose generation.
+            # The graph nodes (observations, risks, questions) are the
+            # traceability and citation layer only — they must NOT be used
+            # to reconstruct paragraphs in the report.
+            graph.domain_assessments[asm.domain] = asm
 
             # Indexing: Assessment by Domain
             graph.assessments_by_domain.setdefault(asm.domain, []).append(asm_id)
@@ -339,7 +351,7 @@ class ObservationGraphBuilder:
                 description=getattr(conflict, "conflict_explanation", "Contradiction"),
                 conflict_type=getattr(conflict, "conflict_type", "FACTUAL"),
                 confidence=getattr(conflict, "confidence", 1.0),
-                created_at=getattr(conflict, "created_at", datetime.utcnow())
+                created_at=getattr(conflict, "created_at", datetime.now(timezone.utc))
             )
             graph.conflicts[conflict_id] = conflict_node
 
@@ -494,62 +506,11 @@ class ObservationGraphBuilder:
         """SHA-256 integrity hash of version, node payloads, edges, and graph stats."""
         import json
         import hashlib
-        from datetime import datetime
-        from enum import Enum
+        from app.modules.evaluation.graph.graph_serializer import fast_dump
         
-        def fast_dump(node):
-            if hasattr(node, "model_dump"):
-                res = node.model_dump()
-            elif hasattr(node, "__dict__"):
-                res = node.__dict__.copy()
-            else:
-                return node
-                
-            for k, v in list(res.items()):
-                if isinstance(v, datetime):
-                    res[k] = v.isoformat() + "Z"
-                elif isinstance(v, dict):
-                    # convert nested dict datetimes
-                    for nk, nv in list(v.items()):
-                        if isinstance(nv, datetime):
-                            v[nk] = nv.isoformat() + "Z"
-                elif isinstance(v, list):
-                    res[k] = [fast_dump(x) if hasattr(x, "model_dump") or hasattr(x, "__dict__") else x for x in v]
-                    
-            # Handle enums and Pydantic models only for specific nodes to optimize performance
-            node_type = getattr(node, "node_type", None)
-            if node_type in (NodeType.INVESTMENT, NodeType.REPORT, NodeType.DECISION):
-                for k, v in list(res.items()):
-                    if isinstance(v, Enum):
-                        res[k] = v.value
-            if node_type in (NodeType.REPORT, NodeType.DECISION):
-                for k, v in list(res.items()):
-                    if hasattr(v, "model_dump"):
-                        res[k] = v.model_dump()
-                    elif isinstance(v, list):
-                        res[k] = [x.model_dump() if hasattr(x, "model_dump") else x for x in v]
-            if "summary" in res and hasattr(res["summary"], "model_dump"):
-                res["summary"] = res["summary"].model_dump()
-            if "key_observations" in res:
-                res["key_observations"] = [o.model_dump() if hasattr(o, "model_dump") else o for o in res["key_observations"]]
-            if "major_risks" in res:
-                res["major_risks"] = [r.model_dump() if hasattr(r, "model_dump") else r for r in res["major_risks"]]
-            if "traceability" in res:
-                def format_trace(item):
-                    if isinstance(item, list):
-                        return [format_trace(x) for x in item]
-                    if isinstance(item, dict):
-                        return {k: format_trace(v) for k, v in item.items()}
-                    if isinstance(item, Enum):
-                        return item.value
-                    if isinstance(item, (str, int, float, bool, type(None))):
-                        return item
-                    if hasattr(item, "__dict__"):
-                        return fast_dump(item)
-                    return item
-                res["traceability"] = format_trace(res["traceability"])
-            return res
-
+        # Reset the dump cache to evaluate live node states for the integrity hash
+        graph.dump_cache = {}
+        
         hash_list = []
         hash_list.append(graph.graph_version)
 
@@ -560,7 +521,7 @@ class ObservationGraphBuilder:
                      graph.correlations, graph.resolutions]:
             for nid in sorted(coll.keys()):
                 node = coll[nid]
-                payloads.append(fast_dump(node))
+                payloads.append(fast_dump(node, graph))
         hash_list.append(json.dumps(payloads, sort_keys=True))
 
         # 3. Edge contents (deterministic sort by source, target, relationship)
@@ -589,34 +550,34 @@ class ObservationGraphBuilder:
 
         # 7. Executive Layer
         if getattr(graph, "executive_assessment", None):
-            hash_list.append(json.dumps(fast_dump(graph.executive_assessment), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.executive_assessment, graph), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "executive_indexes", {}), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "executive_statistics", {}), sort_keys=True))
 
         # 8. Investment Layer
         if getattr(graph, "investment_assessment", None):
-            hash_list.append(json.dumps(fast_dump(graph.investment_assessment), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.investment_assessment, graph), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "investment_indexes", {}), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "investment_statistics", {}), sort_keys=True))
 
         # 9. Report Layer
         if getattr(graph, "report", None):
-            hash_list.append(json.dumps(fast_dump(graph.report), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.report, graph), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "report_indexes", {}), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "report_statistics", {}), sort_keys=True))
 
         # 10. Portfolio Layer
         if getattr(graph, "portfolio_entry", None):
-            hash_list.append(json.dumps(fast_dump(graph.portfolio_entry), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.portfolio_entry, graph), sort_keys=True))
         if getattr(graph, "portfolio_statistics", None):
-            hash_list.append(json.dumps(fast_dump(graph.portfolio_statistics), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.portfolio_statistics, graph), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "startup_id", ""), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "startup_name", ""), sort_keys=True))
         hash_list.append(json.dumps(getattr(graph, "category", ""), sort_keys=True))
 
         # 11. Committee Decision Layer
         if getattr(graph, "committee_decision", None):
-            hash_list.append(json.dumps(fast_dump(graph.committee_decision), sort_keys=True))
+            hash_list.append(json.dumps(fast_dump(graph.committee_decision, graph), sort_keys=True))
 
         # Final SHA-256 hash
         hasher = hashlib.sha256()

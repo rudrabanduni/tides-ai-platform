@@ -125,11 +125,37 @@ class EvaluationService:
             evidence = self.db.query(StartupEvidence).join(StartupClaim).filter(StartupClaim.profile_id == profile.id).all()
             conflicts = self.db.query(FieldConflict).filter(FieldConflict.profile_id == profile.id).all()
 
+            if not claims:
+                from app.modules.documents.models import Document
+                from app.core.enums import DocumentProcessingStatus
+                documents = self.db.query(Document).filter(
+                    Document.startup_id == startup_id,
+                    Document.processing_status == DocumentProcessingStatus.PARSED
+                ).all()
+                if documents:
+                    from app.modules.intelligence.ai.extractor import AIExtractor
+                    from app.modules.intelligence.claim_engine import ClaimEngine
+                    
+                    extractor = AIExtractor(self.db)
+                    claim_engine = ClaimEngine(self.db)
+                    for doc in documents:
+                        try:
+                            doc_ext = extractor.extract_document(doc.id)
+                            claim_engine.process_extraction(startup_id, doc_ext, doc.id)
+                        except Exception as e:
+                            logger.warning(f"Auto-extraction failed for document {doc.id} during evaluation: {e}")
+                    
+                    # Refresh claims/evidence/conflicts
+                    claims = self.db.query(StartupClaim).filter(StartupClaim.profile_id == profile.id).all()
+                    evidence = self.db.query(StartupEvidence).join(StartupClaim).filter(StartupClaim.profile_id == profile.id).all()
+                    conflicts = self.db.query(FieldConflict).filter(FieldConflict.profile_id == profile.id).all()
+
             # Update stage
             status_rec = self.db.query(StartupProcessingStatus).filter(StartupProcessingStatus.id == status_record_id).first()
             status_rec.current_stage = "RUNNING_EXPERTS"
             status_rec.progress_percentage = 30
             self.db.commit()
+
 
             # Execute expert evaluations if claims exist; else build default mock graph for testing/bootstrapping
             if claims:
@@ -309,22 +335,43 @@ class ReportService:
         self.db = db
         self.eval_service = EvaluationService(db)
 
-    def get_report(self, startup_id: UUID) -> Any:
-        graph = self.eval_service.get_graph(str(startup_id))
+    def _find_graph(self, report_id_or_startup_id: str) -> Any:
+        # 1. Check if valid UUID first
+        try:
+            startup_uuid = UUID(report_id_or_startup_id)
+            return self.eval_service.get_graph(str(startup_uuid))
+        except ValueError:
+            pass
+
+        # 2. Iterate through all cached graphs to find matching report_id
+        for g in self.eval_service.get_all_graphs():
+            if g.report and g.report.report_id == report_id_or_startup_id:
+                return g
+                
+        # 3. Fallback direct lookup as string
+        try:
+            return self.eval_service.get_graph(report_id_or_startup_id)
+        except Exception:
+            pass
+
+        raise EvaluationNotFoundError(report_id_or_startup_id)
+
+    def get_report(self, report_id_or_startup_id: str) -> Any:
+        graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
-            raise EvaluationNotFoundError(str(startup_id))
+            raise EvaluationNotFoundError(report_id_or_startup_id)
         return graph.report
 
-    def download_pdf(self, startup_id: UUID) -> bytes:
-        graph = self.eval_service.get_graph(str(startup_id))
+    def download_pdf(self, report_id_or_startup_id: str) -> bytes:
+        graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
-            raise EvaluationNotFoundError(str(startup_id))
+            raise EvaluationNotFoundError(report_id_or_startup_id)
         return ReportSerializer.export_pdf_data(graph.report)
 
-    def get_markdown(self, startup_id: UUID) -> str:
-        graph = self.eval_service.get_graph(str(startup_id))
+    def get_markdown(self, report_id_or_startup_id: str) -> str:
+        graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
-            raise EvaluationNotFoundError(str(startup_id))
+            raise EvaluationNotFoundError(report_id_or_startup_id)
         return ReportSerializer.export_markdown(graph.report)
 
 # Dependency Injection Resolvers
