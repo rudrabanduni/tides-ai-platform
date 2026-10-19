@@ -182,16 +182,16 @@ def test_litellm_gateway_success(mock_completion) -> None:
         "before or after the JSON object.\n\n"
         f"```json-schema\n{schema_json}\n```"
     )
-    mock_completion.assert_called_once_with(
-        model="claude-3-5-sonnet-20241022",
-        messages=[
-            {"role": "system", "content": expected_system},
-            {"role": "user", "content": "User input"},
-        ],
-        response_format=SampleAgentOutput,
-        timeout=60,
-        num_retries=0,
-    )
+    mock_completion.assert_called_once()
+    call_kwargs = mock_completion.call_args[1]
+    assert call_kwargs["model"] == "claude-3-5-sonnet-20241022"
+    assert call_kwargs["messages"] == [
+        {"role": "system", "content": expected_system},
+        {"role": "user", "content": "User input"},
+    ]
+    assert call_kwargs["response_format"] == SampleAgentOutput
+    assert call_kwargs["timeout"] == 60
+    assert call_kwargs["num_retries"] == 0
 
 
 
@@ -230,4 +230,71 @@ def test_litellm_gateway_raises_airesponseparseerror_on_schema_mismatch(mock_com
 
     with pytest.raises(AIResponseParseError, match="validation failed"):
         gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_authentication_error(mock_completion) -> None:
+    from litellm.exceptions import AuthenticationError
+    mock_completion.side_effect = AuthenticationError(
+        message="Authentication failed: Invalid API Key",
+        model="claude-3-5-sonnet-20241022",
+        llm_provider="anthropic"
+    )
+
+    gateway = LiteLLMGateway(max_retries=0)
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIProviderError, match="Authentication failed"):
+        gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_rate_limit_error(mock_completion) -> None:
+    from litellm.exceptions import RateLimitError
+    mock_completion.side_effect = RateLimitError(
+        message="Rate limit exceeded",
+        model="claude-3-5-sonnet-20241022",
+        llm_provider="anthropic"
+    )
+
+    gateway = LiteLLMGateway(max_retries=0)
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIProviderError, match="Rate limit exceeded"):
+        gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_insufficient_funds_error(mock_completion) -> None:
+    from litellm.exceptions import BudgetExceededError
+    mock_completion.side_effect = BudgetExceededError(
+        current_cost=10.0,
+        max_budget=5.0,
+        message="Insufficient credits in billing account"
+    )
+
+    gateway = LiteLLMGateway(max_retries=0)
+    request = AICompletionRequest(system_prompt="sys", user_prompt="user")
+
+    with pytest.raises(AIProviderError, match="Insufficient funds"):
+        gateway.complete_json(request, SampleAgentOutput)
+
+
+@patch("litellm.completion")
+def test_litellm_gateway_streaming_validation(mock_completion) -> None:
+    import litellm
+    class MockChunk:
+        def __init__(self, content):
+            self.choices = [MockChoice(content)]
+            
+    mock_completion.return_value = [MockChunk("part1 "), MockChunk("part2")]
+    
+    response = litellm.completion(
+        model="claude-3-5-sonnet-20241022",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True
+    )
+    chunks = [chunk.choices[0].message.content for chunk in response]
+    assert chunks == ["part1 ", "part2"]
+
 

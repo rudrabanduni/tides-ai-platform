@@ -35,6 +35,7 @@ def create_ai_gateway(*, settings: Settings | None = None, force_mock: bool = Fa
             model=resolved_settings.litellm_model,
             timeout=resolved_settings.ai_request_timeout_seconds,
             max_retries=resolved_settings.ai_max_retries,
+            api_key=resolved_settings.anthropic_api_key,
         )
 
     raise AIProviderError(f"AI provider '{resolved_settings.ai_provider}' is not implemented")

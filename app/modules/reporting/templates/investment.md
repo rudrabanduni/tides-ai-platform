@@ -1,4 +1,4 @@
-# Investment Recommendation Summary
+# Investment Committee Recommendation Summary
 
 **Recommendation Verdict:** {recommendation}
 **Investment Score:** {investment_score:.2f} / 100

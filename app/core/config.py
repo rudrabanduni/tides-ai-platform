@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     ai_request_timeout_seconds: int = Field(default=120, validation_alias="AI_REQUEST_TIMEOUT_SECONDS")
     ai_max_retries: int = Field(default=2, validation_alias="AI_MAX_RETRIES")
     anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    ai_max_evaluation_budget: float = Field(default=1.00, validation_alias="AI_MAX_EVALUATION_BUDGET")
 
 
 @lru_cache

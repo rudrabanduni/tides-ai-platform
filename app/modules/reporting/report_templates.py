@@ -14,9 +14,9 @@ EXECUTIVE_TEMPLATE = """
 ### Overall Readiness
 *   **Overall Score**: {overall_score}/100
 *   **Overall Confidence**: {overall_confidence:.2f}
-*   **Evidence Coverage**: {evidence_coverage:.2%}
+*   **Diligence Coverage**: {evidence_coverage:.2%}
 
-### Investment Recommendation
+### Investment Committee Recommendation
 {investment_recommendation}
 
 ### Top Strengths
@@ -27,15 +27,15 @@ EXECUTIVE_TEMPLATE = """
 """
 
 DOMAIN_SECTION_TEMPLATE = """
-## {title} Assessment
+## {title} Review
 {summary}
 
 *   **Section Confidence**: {confidence:.2f}
 
-### Key Observations
+### Key Findings
 {observations}
 
-### Supporting Evidence
+### Diligence Citations
 {evidence}
 
 ### Key Strengths
@@ -55,7 +55,7 @@ RISK_MATRIX_TEMPLATE = """
 ## Risk Matrix
 The following matrix details risk categories identified by the expert agents:
 
-| Category | Severity | Confidence | Primary Evidence | Mitigation / Recommendation |
+| Category | Severity | Confidence | Primary Citations | Mitigation / Recommendation |
 | --- | --- | --- | --- | --- |
 | **Technical** | {tech_severity} | {tech_confidence:.2f} | {tech_evidence} | {tech_reco} |
 | **Execution** | {exec_severity} | {exec_confidence:.2f} | {exec_evidence} | {exec_reco} |

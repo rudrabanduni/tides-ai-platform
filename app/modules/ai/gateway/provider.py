@@ -177,9 +177,9 @@ class AnthropicProvider(BaseProvider):
         settings = get_ai_settings()
         if not settings.anthropic_api_key:
             raise ValueError("Anthropic API key is not configured.")
-            
         import anthropic
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        api_key = settings.anthropic_api_key.strip()
+        client = anthropic.AsyncAnthropic(api_key=api_key)
         start_time = time.perf_counter()
         
         model_name = request.model_override or settings.ai_anthropic_model
@@ -188,13 +188,18 @@ class AnthropicProvider(BaseProvider):
             "model": model_name,
             "messages": [{"role": "user", "content": request.user_prompt}],
             "max_tokens": request.max_tokens,
-            "temperature": request.temperature,
         }
+        if request.temperature is not None and "claude-sonnet-5" not in model_name:
+            kwargs["temperature"] = request.temperature
         if request.system_prompt:
             kwargs["system"] = request.system_prompt
             
         res = await client.messages.create(**kwargs)
-        content = res.content[0].text
+        content = ""
+        for block in res.content:
+            if hasattr(block, "text"):
+                content = block.text
+                break
         
         parsed_obj = None
         if request.response_schema and content:

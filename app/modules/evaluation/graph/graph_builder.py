@@ -26,7 +26,7 @@ class ObservationGraphBuilder:
     ) -> ObservationGraph:
         graph = ObservationGraph()
         # Populate startup info
-        graph.startup_id = str(getattr(profile, "id", getattr(profile, "startup_id", str(uuid.uuid4()))))
+        graph.startup_id = str(getattr(profile, "startup_id", getattr(profile, "id", str(uuid.uuid4()))))
         graph.graph_id = graph.startup_id
         graph.startup_name = str(getattr(profile, "startup_name", getattr(profile, "name", f"Startup-{graph.graph_id[:8]}")))
         graph.category = str(getattr(profile, "sector", getattr(profile, "category", "Unknown")))

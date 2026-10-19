@@ -40,7 +40,7 @@ class MarkdownRenderer(ReportRenderer):
             f"*   **Recommendation**: {report.investment_summary.recommendation}",
             "",
             "## Risk Matrix",
-            "| Risk Category | Severity | Confidence | Primary Evidence | Mitigations / Recommendations |",
+            "| Risk Category | Severity | Confidence | Primary Citations | Mitigations / Recommendations |",
             "| --- | --- | --- | --- | --- |",
         ]
         
@@ -58,32 +58,32 @@ class MarkdownRenderer(ReportRenderer):
             ("financial", "Financial Runway"),
             ("ip", "Intellectual Property"),
             ("risk", "Risk Exposure"),
-            ("investment", "Investment Assessment")
+            ("investment", "Investment Committee Recommendation")
         ]
 
         for field_name, title in domains:
             sect = getattr(report, f"{field_name}_assessment")
             sect_parts = [
                 "",
-                f"## {title} Assessment",
+                f"## {title} Review",
                 sect.summary,
                 "",
                 f"*   **Confidence**: {sect.confidence:.2f}",
                 "",
-                "### Key Observations"
+                "### Key Findings"
             ]
             if sect.observations:
                 for o in sect.observations:
                     sect_parts.append(f"*   **[{o.get('id', 'N/A')}]** {o.get('text')} *(Confidence: {o.get('confidence', 1.0):.2f})*")
             else:
-                sect_parts.append("*   No observations recorded.")
+                sect_parts.append("*   No findings recorded.")
 
-            sect_parts.append("\n### Supporting Evidence")
+            sect_parts.append("\n### Diligence Citations")
             if sect.supporting_evidence:
                 for ev in sect.supporting_evidence:
                     sect_parts.append(f"*   **[{ev.get('id', 'N/A')}]** {ev.get('excerpt')} *(Location: {ev.get('location')})*")
             else:
-                sect_parts.append("*   No supporting evidence recorded.")
+                sect_parts.append("*   No diligence citations recorded.")
 
             sect_parts.append("\n### Key Strengths")
             if sect.strengths:

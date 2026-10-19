@@ -13,7 +13,6 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.modules.auth.dependencies import get_current_user
-from app.modules.startup_profiles.agent import StartupProfileAgentService
 from app.modules.startup_profiles.models import AIAssessmentRecord
 from app.services.ai import MockAIGateway
 
@@ -96,20 +95,11 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     def _override_get_current_user():
         return fake_user
 
-    # Patch the AI gateway to use our dynamic mock factory
-    def _override_agent_init(self, db):
-        self.db = db
-        self.gateway = MockAIGateway(response_factory=_mock_response_factory)
-
-    original_init = StartupProfileAgentService.__init__
-    StartupProfileAgentService.__init__ = _override_agent_init
-
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_current_user] = _override_get_current_user
     try:
         yield TestClient(app)
     finally:
-        StartupProfileAgentService.__init__ = original_init
         app.dependency_overrides.clear()
 
 

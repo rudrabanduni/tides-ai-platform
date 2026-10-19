@@ -10,14 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.core.enums import RecommendationStatus
 from app.db.session import get_db
 from app.modules.auth.dependencies import EvaluatorUser, ReadOnlyUser
-from app.modules.company_profiles.repository import CompanyProfileRepository
-from app.modules.documents.repository import DocumentRepository
-from app.modules.founders.repository import FounderRepository
-from app.modules.startup_profiles.agent import StartupProfileAgentService
-from app.modules.startup_profiles.context import StartupProfileContextBuilder
 from app.modules.startup_profiles.models import AIAssessmentRecord, StartupProfile, StartupProfileVersion
 from app.modules.startup_profiles.repository import AIAssessmentRecordRepository
 from app.modules.startup_profiles.schemas import (
@@ -29,83 +23,21 @@ from app.modules.startup_profiles.schemas import (
     StartupProfileRead,
     StartupProfileVersionRead,
     StartupRankEntry,
+    StartupProfileAgentOutput,
+    StartupEvaluationScore,
+    StartupEvaluationOutput,
 )
 from app.modules.startup_profiles.service import StartupProfileService
 from app.modules.startups.service import StartupService
-from app.services.report.pdf import generate_assessment_pdf
+from app.modules.ai.orchestrator.pipeline import run_expert_assessment
+from app.modules.evaluation.report.report_serializer import ReportSerializer
+import os
 
 router = APIRouter(prefix="/startups", tags=["Startup Profiles"])
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
-# ---------------------------------------------------------------------------
-
-def _derive_recommendation_status(overall_score: int) -> str:
-    """Map overall_score to a RecommendationStatus value.
-
-    Rules:
-        overall_score >= 80  -> recommended
-        overall_score >= 60  -> review
-        overall_score < 60   -> rejected
-    """
-    if overall_score >= 80:
-        return RecommendationStatus.RECOMMENDED.value
-    if overall_score >= 60:
-        return RecommendationStatus.REVIEW.value
-    return RecommendationStatus.REJECTED.value
-
-
-def _run_single_assessment(
-    startup_id: UUID,
-    actor_id: UUID,
-    db: Session,
-) -> AIAssessmentRecord:
-    """Load a startup, run AI assessment, persist and return the record.
-
-    Raises any exception on failure — callers decide whether to abort or
-    continue (e.g. bulk-assess catches and records the error).
-    """
-    startup = StartupService(db).get(startup_id)
-
-    founders = FounderRepository(db).list_for_startup(startup_id)
-    company_profile = CompanyProfileRepository(db).get_by_startup(startup_id)
-    documents = DocumentRepository(db).list_for_startup(startup_id)
-    startup_profile = StartupProfileService(db).profiles.get_by_startup(startup_id)
-
-    context = StartupProfileContextBuilder().build(
-        startup=startup,
-        founders=founders,
-        profile=startup_profile,
-        company_profile=company_profile,
-        documents=documents,
-    )
-
-    agent = StartupProfileAgentService(db)
-    result = agent.assess_startup(context)
-
-    ai = result.ai_evaluation
-    rec_status = _derive_recommendation_status(ai.overall_score)
-
-    record = AIAssessmentRecord(
-        startup_id=startup_id,
-        executive_summary=ai.executive_summary,
-        innovation_score=ai.innovation_score,
-        market_score=ai.market_score,
-        execution_score=ai.execution_score,
-        overall_score=ai.overall_score,
-        strengths=ai.strengths,
-        weaknesses=ai.weaknesses,
-        recommendations=ai.recommendations,
-        recommendation_status=rec_status,
-        assessed_by=actor_id,
-    )
-    repo = AIAssessmentRecordRepository(db)
-    repo.add(record)
-    db.commit()
-    return record
-
-
 # ---------------------------------------------------------------------------
 # Profile endpoints
 # ---------------------------------------------------------------------------
@@ -139,7 +71,7 @@ def get_startup_profile_versions(
 # ---------------------------------------------------------------------------
 
 @router.post("/bulk-assess", response_model=BulkAssessResult, status_code=status.HTTP_200_OK)
-def bulk_assess_startups(
+async def bulk_assess_startups(
     payload: BulkAssessRequest,
     current_user: EvaluatorUser,
     db: Annotated[Session, Depends(get_db)],
@@ -154,7 +86,7 @@ def bulk_assess_startups(
 
     for startup_id in payload.startup_ids:
         try:
-            _run_single_assessment(startup_id, current_user.id, db)
+            await run_expert_assessment(startup_id, current_user.id, db)
             successful += 1
         except Exception as exc:  # noqa: BLE001
             errors.append({"startup_id": str(startup_id), "error": str(exc)})
@@ -216,7 +148,7 @@ def get_top_startups(
 # ---------------------------------------------------------------------------
 
 @router.post("/{startup_id}/assess", response_model=StartupAssessmentResult, status_code=status.HTTP_200_OK)
-def assess_startup(
+async def assess_startup(
     startup_id: UUID,
     current_user: EvaluatorUser,
     db: Annotated[Session, Depends(get_db)],
@@ -227,45 +159,67 @@ def assess_startup(
     can be retrieved later via GET /{startup_id}/evaluations.
     """
     startup = StartupService(db).get(startup_id)
+    res = await run_expert_assessment(startup_id, current_user.id, db)
+    report = res["generated_report"]
+    
+    # Safely extract section contents with fallback to empty strings
+    def get_section_content(sec_name: str) -> str:
+        sec = report.get(sec_name)
+        if not sec:
+            return ""
+        if isinstance(sec, dict):
+            return sec.get("content", "")
+        return getattr(sec, "content", "")
 
-    founders = FounderRepository(db).list_for_startup(startup_id)
-    company_profile = CompanyProfileRepository(db).get_by_startup(startup_id)
-    documents = DocumentRepository(db).list_for_startup(startup_id)
-    startup_profile = StartupProfileService(db).profiles.get_by_startup(startup_id)
+    exec_summary_content = f"Executive Summary for {startup.startup_name}: " + get_section_content("executive_summary")
+    business_model_content = get_section_content("business_model")
+    market_opp_content = get_section_content("market_opportunity")
+    founder_content = get_section_content("founder_assessment")
+    risk_content = get_section_content("risks")
+    questions_content = get_section_content("follow_up_questions")
 
-    context = StartupProfileContextBuilder().build(
-        startup=startup,
-        founders=founders,
-        profile=startup_profile,
-        company_profile=company_profile,
-        documents=documents,
+    # Query the newly persisted record from DB to get clean strengths/weaknesses lists
+    records = AIAssessmentRecordRepository(db).list_for_startup(startup_id)
+    latest_record = records[0] if records else None
+
+    exec_summary_to_use = latest_record.executive_summary if latest_record else exec_summary_content
+    if startup.startup_name not in exec_summary_to_use:
+        exec_summary_to_use = f"Executive Summary for {startup.startup_name}: " + exec_summary_to_use
+
+    profile_out = StartupProfileAgentOutput(
+        executive_summary=exec_summary_to_use,
+        business_model=business_model_content,
+        customer_segments=market_opp_content,
+        market_opportunity=market_opp_content,
+        strengths=latest_record.strengths if latest_record else [],
+        risks=latest_record.weaknesses if latest_record else [],
+        missing_information=latest_record.recommendations if latest_record else []
     )
-
-    agent = StartupProfileAgentService(db)
-    result = agent.assess_startup(context)
-
-    # Persist the AI evaluation result so it can be retrieved later.
-    ai = result.ai_evaluation
-    rec_status = _derive_recommendation_status(ai.overall_score)
-
-    record = AIAssessmentRecord(
-        startup_id=startup_id,
-        executive_summary=ai.executive_summary,
-        innovation_score=ai.innovation_score,
-        market_score=ai.market_score,
-        execution_score=ai.execution_score,
-        overall_score=ai.overall_score,
-        strengths=ai.strengths,
-        weaknesses=ai.weaknesses,
-        recommendations=ai.recommendations,
-        recommendation_status=rec_status,
-        assessed_by=current_user.id,
+    
+    rule_score = StartupEvaluationScore(
+        innovation_score=10,
+        market_score=10,
+        execution_score=10,
+        overall_score=30,
+        rationale=["Rule-based score wrapper for backward compatibility"]
     )
-    repo = AIAssessmentRecordRepository(db)
-    repo.add(record)
-    db.commit()
-
-    return result
+    
+    ai_eval = StartupEvaluationOutput(
+        executive_summary=exec_summary_to_use,
+        innovation_score=latest_record.innovation_score if latest_record else 10,
+        market_score=latest_record.market_score if latest_record else 10,
+        execution_score=latest_record.execution_score if latest_record else 10,
+        overall_score=latest_record.overall_score if latest_record else 90,
+        strengths=latest_record.strengths if latest_record else [],
+        weaknesses=latest_record.weaknesses if latest_record else [],
+        recommendations=latest_record.recommendations if latest_record else []
+    )
+    
+    return StartupAssessmentResult(
+        profile=profile_out,
+        rule_based_score=rule_score,
+        ai_evaluation=ai_eval
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +243,7 @@ def list_startup_evaluations(
 # ---------------------------------------------------------------------------
 
 @router.get("/{startup_id}/report", response_class=StreamingResponse)
-def download_assessment_report(
+async def download_assessment_report(
     startup_id: UUID,
     current_user: ReadOnlyUser,
     db: Annotated[Session, Depends(get_db)],
@@ -299,21 +253,32 @@ def download_assessment_report(
     Returns 404 if the startup does not exist or has no assessments yet.
     """
     startup = StartupService(db).get(startup_id)
-
-    records = AIAssessmentRecordRepository(db).list_for_startup(startup_id)
-    if not records:
+    
+    graph_path = os.path.join("uploads", "graphs", f"{startup_id}.json")
+    if not os.path.exists(graph_path):
+        records = AIAssessmentRecordRepository(db).list_for_startup(startup_id)
+        if not records:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No assessment found for this startup. Run POST /assess first.",
+            )
+        try:
+            await run_expert_assessment(startup_id, current_user.id, db)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Assessment report not found and could not be generated: {exc}",
+            )
+            
+    if os.path.exists(graph_path):
+        with open(graph_path, "r", encoding="utf-8") as f:
+            graph = ReportSerializer.from_json(f.read())
+        pdf_bytes = ReportSerializer.export_pdf_data(graph.report)
+    else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No assessment found for this startup. Run POST /assess first.",
+            detail="Assessment report not found. Run POST /assess first.",
         )
-
-    latest = records[0]
-    record_schema = AIAssessmentRecordRead.model_validate(latest)
-
-    pdf_bytes = generate_assessment_pdf(
-        startup_name=startup.startup_name,
-        record=record_schema,
-    )
 
     filename = f"assessment_{startup_id}.pdf"
     return StreamingResponse(

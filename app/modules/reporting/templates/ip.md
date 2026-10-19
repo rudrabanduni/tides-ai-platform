@@ -2,5 +2,5 @@
 
 **Confidence Score:** {confidence:.2f}
 
-**Observations:**
+**Key Findings:**
 {observations}

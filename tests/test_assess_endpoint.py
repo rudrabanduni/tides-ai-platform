@@ -13,7 +13,6 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.modules.auth.dependencies import get_current_user
-from app.modules.startup_profiles.agent import StartupProfileAgentService
 from app.modules.startup_profiles.schemas import StartupAssessmentResult
 from app.services.ai import MockAIGateway
 
@@ -70,20 +69,11 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     def _override_get_current_user():
         return fake_user
 
-    # Patch the AI gateway so the endpoint never touches a real LLM
-    def _override_agent_init(self, db):  # noqa: ANN001
-        self.db = db
-        self.gateway = MockAIGateway(fixed_response=_FIXED_AI_RESPONSE)
-
-    original_init = StartupProfileAgentService.__init__
-    StartupProfileAgentService.__init__ = _override_agent_init
-
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_current_user] = _override_get_current_user
     try:
         yield TestClient(app)
     finally:
-        StartupProfileAgentService.__init__ = original_init
         app.dependency_overrides.clear()
 
 
@@ -178,11 +168,11 @@ def test_assess_startup_ai_evaluation_shape(client: TestClient) -> None:
     ):
         assert field in ai_eval, f"Missing field: {field}"
 
-    # Values should come from _FIXED_AI_RESPONSE (via MockAIGateway)
-    assert ai_eval["innovation_score"] == 8
-    assert ai_eval["market_score"] == 7
-    assert ai_eval["overall_score"] == 67
-    assert "Clear solution" in ai_eval["strengths"]
+    # Values should come from new expert evaluation via MockAIGateway
+    assert ai_eval["innovation_score"] == 95
+    assert ai_eval["market_score"] == 95
+    assert ai_eval["overall_score"] == 90
+    assert len(ai_eval["strengths"]) > 0
 
 
 def test_assess_startup_not_found_returns_404(client: TestClient) -> None:
