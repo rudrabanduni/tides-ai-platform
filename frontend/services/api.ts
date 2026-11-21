@@ -3,23 +3,8 @@ import { Startup, DashboardStats, Report, Portfolio, CommitteeDecision } from '@
 
 export const apiService = {
   async login(payload: any) {
-    try {
-      const res = await apiClient.post('/api/v1/auth/login', payload);
-      return res.data;
-    } catch (err: any) {
-      // Auto bootstrap admin credentials on first attempt
-      try {
-        await apiClient.post('/api/v1/auth/bootstrap-admin', {
-          name: 'Lead Incubation Manager',
-          email: payload.email,
-          password: payload.password,
-        });
-        const resRetry = await apiClient.post('/api/v1/auth/login', payload);
-        return resRetry.data;
-      } catch (bootstrapErr) {
-        throw err;
-      }
-    }
+    const res = await apiClient.post('/api/v1/auth/login', payload);
+    return res.data;
   },
 
   // Dashboard
@@ -31,17 +16,18 @@ export const apiService = {
   // Startups
   async getStartups(): Promise<Startup[]> {
     const res = await apiClient.get('/api/v1/startups');
-    return res.data;
+    const payload = res.data?.data?.items ?? res.data?.data ?? res.data;
+    return Array.isArray(payload) ? payload : [];
   },
 
   async createStartup(payload: Partial<Startup>): Promise<Startup> {
     const res = await apiClient.post('/api/v1/startups', payload);
-    return res.data;
+    return res.data?.data ?? res.data;
   },
 
   async updateStartup(id: string, payload: Partial<Startup>): Promise<Startup> {
     const res = await apiClient.patch(`/api/v1/startups/${id}`, payload);
-    return res.data;
+    return res.data?.data ?? res.data;
   },
 
   async deleteStartup(id: string): Promise<void> {
@@ -78,27 +64,47 @@ export const apiService = {
     return res.data;
   },
 
+  async getReportMarkdown(id: string): Promise<string> {
+    const res = await apiClient.get(`/api/v1/reports/${id}/markdown`);
+    return res.data.data;
+  },
+
   // Portfolio
   async getPortfolio(): Promise<Portfolio> {
     const res = await apiClient.get('/api/v1/portfolio');
-    return res.data;
+    const raw = res.data?.data ?? res.data;
+    if (raw && Array.isArray(raw.entries)) {
+      return raw;
+    }
+    const entries = Array.isArray(raw?.items)
+      ? raw.items
+      : Array.isArray(raw)
+      ? raw
+      : [];
+    return {
+      entries,
+      statistics: raw?.statistics,
+    };
   },
 
   async getPortfolioStats(): Promise<any> {
     const res = await apiClient.get('/api/v1/portfolio/statistics');
-    return res.data;
+    return res.data?.data ?? res.data;
   },
 
   // Committee
   async getCommittee(): Promise<CommitteeDecision[]> {
     const res = await apiClient.get('/api/v1/committee');
-    return res.data;
+    const raw = res.data?.data ?? res.data;
+    const items = raw?.items ?? raw;
+    return Array.isArray(items) ? items : [];
   },
 
   // API Keys
   async getApiKeys(): Promise<any[]> {
     const res = await apiClient.get('/api/v1/apikeys');
-    return res.data;
+    const raw = res.data?.data ?? res.data;
+    return Array.isArray(raw) ? raw : [];
   },
 
   async createApiKey(payload: { name: string; expiry_days?: number }): Promise<any> {

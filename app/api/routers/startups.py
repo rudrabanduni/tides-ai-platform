@@ -9,6 +9,7 @@ from app.modules.startups.models import StartupApplication
 from app.api.responses import make_response
 from app.api.exceptions import StartupNotFoundError
 from app.api.pagination import PaginationParams, paginate_list
+from app.modules.auth.dependencies import AdminUser, EvaluatorUser, ReadOnlyUser
 
 router = APIRouter(tags=["Startups"])
 
@@ -38,7 +39,7 @@ class StartupResponseData(BaseModel):
     created_at: str
 
 @router.post("/startups", status_code=status.HTTP_201_CREATED)
-def create_startup(request: Request, payload: StartupCreateInput, db: Session = Depends(get_db)):
+def create_startup(request: Request, payload: StartupCreateInput, current_user: EvaluatorUser, db: Session = Depends(get_db)):
     startup = StartupApplication(
         startup_name=payload.startup_name,
         sector=payload.sector,
@@ -73,7 +74,7 @@ def create_startup(request: Request, payload: StartupCreateInput, db: Session = 
     return make_response(request, data=data, message="Startup application registered successfully")
 
 @router.get("/startups")
-def list_startups(request: Request, pagination: PaginationParams = Depends(), db: Session = Depends(get_db)):
+def list_startups(request: Request, current_user: ReadOnlyUser, pagination: PaginationParams = Depends(), db: Session = Depends(get_db)):
     query = db.query(StartupApplication)
     
     # Fetch all matching entries
@@ -101,7 +102,7 @@ def list_startups(request: Request, pagination: PaginationParams = Depends(), db
     return make_response(request, data=res_data, message="Startups retrieved successfully")
 
 @router.get("/startups/{startup_id}")
-def get_startup(request: Request, startup_id: UUID = Path(...), db: Session = Depends(get_db)):
+def get_startup(request: Request, current_user: ReadOnlyUser, startup_id: UUID = Path(...), db: Session = Depends(get_db)):
     startup = db.query(StartupApplication).filter(StartupApplication.id == startup_id).first()
     if not startup:
         raise StartupNotFoundError(str(startup_id))
@@ -121,8 +122,6 @@ def get_startup(request: Request, startup_id: UUID = Path(...), db: Session = De
         "created_at": startup.created_at.isoformat() + "Z" if hasattr(startup, "created_at") and startup.created_at else None
     }
     return make_response(request, data=data, message="Startup details retrieved successfully")
-
-from app.modules.auth.dependencies import AdminUser
 
 @router.delete("/startups/{startup_id}")
 def delete_startup(

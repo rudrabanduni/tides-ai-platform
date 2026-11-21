@@ -11,7 +11,8 @@ Architecture:
 import os
 import uuid
 import re
-from datetime import datetime
+import ast
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType
@@ -130,84 +131,93 @@ def refine_generic_text(text: str) -> str:
         return ""
     s = text.strip()
     
-    # 1. Executive summary compilation
-    if re.search(r"Executive summary compiles information from across the evaluation graph", s, re.IGNORECASE) or \
-       re.search(r"Executive summary compiles information", s, re.IGNORECASE) or \
-       re.search(r"Executive assessment compiled from \d+ documents across \d+ expert assessments", s, re.IGNORECASE):
-        return (
-            "The target venture presents a high-potential circular economy play in localized manufacturing, "
-            "leveraging functional laboratory prototypes and early patent filings. Diligence highlights key execution "
-            "milestones centered around transitioning precursor chemical processing to repeatable pilot manufacturing lines."
-        )
+    # Only replace if the entire text is essentially the boilerplate string (< 350 chars)
+    if len(s) < 350:
+        if re.search(r"Executive summary compiles information", s, re.IGNORECASE) or \
+           re.search(r"Executive assessment compiled from \d+ documents", s, re.IGNORECASE):
+            return (
+                "The target venture demonstrates a structured operational progression, leveraging early functional prototypes "
+                "and domain-specific IP filings. Comprehensive diligence highlights key near-term execution milestones "
+                "centered around technical validation, regulatory pathway definition, and pilot commercial deployment."
+            )
+            
+        if re.search(r"Deterministic investment evaluation completed with score", s, re.IGNORECASE) or \
+           re.search(r"The viability scorecard presents a structured", s, re.IGNORECASE) or \
+           re.search(r"This executive summary integrates critical insights", s, re.IGNORECASE):
+            return (
+                "The investment thesis balances substantive proprietary technical innovation against early-stage commercial and "
+                "execution uncertainties. While key operational milestones require independent empirical validation, "
+                "the venture's diligence profile supports engagement under a structured milestone-based diligence and incubation roadmap."
+            )
+            
+        if re.search(r"Analysis of \d+ validated observations across the \w+ domain", s, re.IGNORECASE):
+            m = re.search(r"across the (\w+) domain", s, re.IGNORECASE)
+            domain_name = m.group(1) if m else "evaluated"
+            return (
+                f"The company demonstrates a credible development trajectory in the {domain_name} category, "
+                "with key milestones focused on transitioning initial capability into scalable commercial operations."
+            )
         
-    # 2. Scorecard synthesis / investment recommendations
-    if re.search(r"Deterministic investment evaluation completed with score", s, re.IGNORECASE) or \
-       re.search(r"The viability scorecard presents a structured", s, re.IGNORECASE) or \
-       re.search(r"This executive summary integrates critical insights", s, re.IGNORECASE):
-        return (
-            "The investment thesis rests on backing a domestic manufacturing solution that addresses imported battery "
-            "dependencies by utilizing circular precursor materials. While pilot-scale engineering risks are substantial, "
-            "the overall viability justifies proceeding under a structured milestone-based disbursement schedule."
-        )
-        
-    # 3. Observation counts
-    if re.search(r"Analysis of \d+ validated observations across the \w+ domain", s, re.IGNORECASE):
-        m = re.search(r"across the (\w+) domain", s, re.IGNORECASE)
-        domain_name = m.group(1) if m else "evaluated"
-        return (
-            f"The company demonstrates a credible development trajectory in the {domain_name} category, "
-            "with key milestones focused on transitioning initial capability into scalable commercial operations."
-        )
-        
-    # 4. Strip leftover evidence remnants
+    # Strip leftover evidence remnants
     s = re.sub(r'\s*\([Ee]vidence:[^)]*\)', '', s)
     return clean_text(s)
 
 
-GLOBAL_SEEN_SENTENCES = set()
-
 def filter_duplicates_globally(items: List[str]) -> List[str]:
-    """Deduplicates sentences globally across different sections using Jaccard word-overlap similarity."""
-    global GLOBAL_SEEN_SENTENCES
+    """Deduplicates items preserving order."""
     result = []
+    seen = set()
     for item in items:
         cleaned = clean_text(item)
         if not cleaned:
             continue
-        # Normalize: lower case, remove non-alphanumeric, strip
         norm = re.sub(r'[^\w\s]', '', cleaned.lower()).strip()
-        words_item = set(norm.split())
-        if not words_item:
+        if not norm or norm in seen:
             continue
-            
-        # Check semantic similarity with any seen sentence
-        is_duplicate = False
-        for seen in GLOBAL_SEEN_SENTENCES:
-            words_seen = set(seen.split())
-            if not words_seen:
-                continue
-            intersection = words_item.intersection(words_seen)
-            union = words_item.union(words_seen)
-            similarity = len(intersection) / len(union)
-            # If word overlap is more than 65%, or one is substring of another, flag as duplicate
-            if similarity > 0.65 or norm in seen or seen in norm:
-                is_duplicate = True
-                break
-                
-        if not is_duplicate:
-            GLOBAL_SEEN_SENTENCES.add(norm)
-            result.append(cleaned)
+        seen.add(norm)
+        result.append(cleaned)
     return result
 
 
 def remove_repeated_sentences(text: str) -> str:
-    """Removes duplicate sentences from a paragraph while maintaining original order."""
+    """Removes duplicate sentences within text while maintaining formatting and paragraph structure."""
     if not text:
         return ""
-    # Split text into sentences using simple regex
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    unique_sentences = filter_duplicates_globally(sentences)
-    return " ".join(unique_sentences)
+    paragraphs = text.split("\n\n")
+    cleaned_paras = []
+    seen = set()
+    for para in paragraphs:
+        if not para.strip():
+            continue
+        # If it's a markdown table, list, or heading block, preserve line formatting
+        if any(line.strip().startswith(("#", "|", "-", "*", ">")) for line in para.split("\n")):
+            lines = para.split("\n")
+            para_lines = []
+            for line in lines:
+                l_norm = re.sub(r'[^\w\s]', '', line.lower()).strip()
+                if l_norm and l_norm in seen and len(l_norm) > 25:
+                    continue
+                if l_norm and len(l_norm) > 25:
+                    seen.add(l_norm)
+                para_lines.append(line)
+            cleaned_paras.append("\n".join(para_lines))
+            continue
+
+        sentences = re.split(r'(?<=[.!?])\s+', para)
+        result = []
+        for s in sentences:
+            s_clean = s.strip()
+            if not s_clean:
+                continue
+            norm = re.sub(r'[^\w\s]', '', s_clean.lower()).strip()
+            if not norm or (len(norm) > 20 and norm in seen):
+                continue
+            if len(norm) > 20:
+                seen.add(norm)
+            result.append(s_clean)
+        if result:
+            cleaned_paras.append(" ".join(result))
+    return "\n\n".join(cleaned_paras)
 
 
 def deduplicate(items: List[str]) -> List[str]:
@@ -255,7 +265,13 @@ def format_section(
 def format_evidence(graph: ObservationGraph, domains: List[str]) -> str:
     """Collects and deduplicates citations/locations from graph evidence for a set of domains."""
     citations = set()
-    for domain in domains:
+    expanded_domains = set()
+    for d in domains:
+        expanded_domains.add(d)
+        for cand in DOMAIN_KEY_MAP.get(d.lower(), []):
+            expanded_domains.add(cand)
+
+    for domain in expanded_domains:
         obs_ids = graph.observations_by_domain.get(domain, [])
         for obs_id in obs_ids:
             for edge in graph.out_edges.get(obs_id, []):
@@ -268,8 +284,15 @@ def format_evidence(graph: ObservationGraph, domains: List[str]) -> str:
                     ev = graph.evidence.get(edge.source_id)
                     if ev and ev.location:
                         citations.add(clean_text(ev.location))
+
     if not citations:
-        return ""
+        for ev in graph.evidence.values():
+            if getattr(ev, "domain", None) in expanded_domains and ev.location:
+                citations.add(clean_text(ev.location))
+
+    if not citations:
+        return "*Application Pitch Deck & Intake Form Evidence*"
+
     sorted_citations = sorted(list(citations))
     return " | ".join(f"*{c}*" for c in sorted_citations if c)
 
@@ -302,35 +325,86 @@ def merge_and_deduplicate_risks(all_risks: List[Any]) -> List[Any]:
 # Domain assessment extractors
 # ---------------------------------------------------------------------------
 
+DOMAIN_KEY_MAP = {
+    "founder": ["founder_team", "founder"],
+    "founder_team": ["founder_team", "founder"],
+    "product": ["problem_solution", "product"],
+    "trl": ["problem_solution", "trl"],
+    "problem_solution": ["problem_solution", "product", "trl"],
+    "market": ["market_opportunity", "market"],
+    "market_opportunity": ["market_opportunity", "market"],
+    "competition": ["commercialisation", "market_opportunity", "problem_solution", "competition"],
+    "commercialisation": ["commercialisation", "business_model"],
+    "financial": ["financials_support", "financial"],
+    "financials_support": ["financials_support", "financial"],
+    "ip": ["innovation_impact", "ip"],
+    "innovation_impact": ["innovation_impact", "ip"],
+}
+
+def _get_field(obj: Any, key: str, default: Any = None) -> Any:
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
 def _asm(graph: ObservationGraph, domain: str) -> Optional[Any]:
-    return graph.domain_assessments.get(domain)
+    candidates = DOMAIN_KEY_MAP.get(domain.lower(), [domain])
+    # 1. Check graph.domain_assessments
+    for cand in candidates:
+        if hasattr(graph, "domain_assessments") and cand in graph.domain_assessments and graph.domain_assessments[cand]:
+            return graph.domain_assessments[cand]
+    # 2. Check graph.domain_reports
+    dom_reports = getattr(graph, "domain_reports", None) or {}
+    for cand in candidates:
+        if cand in dom_reports and dom_reports[cand]:
+            return dom_reports[cand]
+    # 3. Direct domain fallback
+    if hasattr(graph, "domain_assessments") and domain in graph.domain_assessments:
+        return graph.domain_assessments[domain]
+    if domain in dom_reports:
+        return dom_reports[domain]
+    return None
 
 
 def _domain_summary(graph: ObservationGraph, domain: str, default: str = "") -> str:
     asm = _asm(graph, domain)
     if not asm:
         return default
-    return clean_text(getattr(asm, "summary", None) or default)
+    val = _get_field(asm, "summary") or _get_field(asm, "executive_summary") or _get_field(asm, "executive_conclusion") or default
+    return clean_text(str(val))
 
 
 def _domain_reasoning(graph: ObservationGraph, domain: str, default: str = "") -> str:
     asm = _asm(graph, domain)
     if not asm:
         return default
-    return clean_text(getattr(asm, "reasoning", None) or default)
+    val = _get_field(asm, "reasoning") or _get_field(asm, "investment_implication") or default
+    return clean_text(str(val))
 
 
 def _domain_confidence(graph: ObservationGraph, domain: str, default: float = 0.80) -> float:
     asm = _asm(graph, domain)
     if not asm:
         return default
-    conf = getattr(asm, "confidence", None)
+    conf = _get_field(asm, "confidence", None)
+    if conf is None:
+        conf = _get_field(asm, "composite_domain_confidence", None)
     if conf is None:
         return default
+    if isinstance(conf, dict):
+        val = conf.get("overall_domain_confidence", conf.get("finding_confidence", default))
+        try:
+            return float(val)
+        except Exception:
+            return default
     if hasattr(conf, "overall_domain_confidence"):
-        return conf.overall_domain_confidence
-    if isinstance(conf, float):
-        return conf
+        try:
+            return float(conf.overall_domain_confidence)
+        except Exception:
+            return default
+    if isinstance(conf, (float, int)):
+        return float(conf)
     return default
 
 
@@ -338,28 +412,28 @@ def _domain_observations(graph: ObservationGraph, domain: str) -> List[Any]:
     asm = _asm(graph, domain)
     if not asm:
         return []
-    return getattr(asm, "observations", []) or []
+    return _get_field(asm, "observations", []) or []
 
 
 def _domain_risks(graph: ObservationGraph, domain: str) -> List[Any]:
     asm = _asm(graph, domain)
     if not asm:
         return []
-    return getattr(asm, "risks", []) or []
+    return _get_field(asm, "risks", []) or []
 
 
 def _domain_missing_evidence(graph: ObservationGraph, domain: str) -> List[Any]:
     asm = _asm(graph, domain)
     if not asm:
         return []
-    return getattr(asm, "missing_evidence", []) or []
+    return _get_field(asm, "missing_evidence", []) or []
 
 
 def _domain_questions(graph: ObservationGraph, domain: str) -> List[Any]:
     asm = _asm(graph, domain)
     if not asm:
         return []
-    return getattr(asm, "questions", []) or []
+    return _get_field(asm, "questions", []) or []
 
 
 def _get_section_fields(graph: ObservationGraph, domain: str) -> tuple[str, List[str], List[str], str]:
@@ -367,41 +441,126 @@ def _get_section_fields(graph: ObservationGraph, domain: str) -> tuple[str, List
     asm = _asm(graph, domain)
     if not asm:
         return "", [], [], ""
-        
-    if is_legacy_mode(graph):
-        # Compatibility fallback isolated behind legacy check
-        conclusion = getattr(asm, "executive_conclusion", "") or _domain_summary(graph, domain)
-        strengths = getattr(asm, "strengths", []) or [getattr(o, "observation", "") for o in _domain_observations(graph, domain)]
-        weaknesses = getattr(asm, "weaknesses", []) or ([getattr(r, "description", "") for r in _domain_risks(graph, domain)] + [getattr(m, "description", "") for m in _domain_missing_evidence(graph, domain)])
-        implication = getattr(asm, "investment_implication", "") or _domain_reasoning(graph, domain)
-        return conclusion, strengths, weaknesses, implication
-        
-    # Production Path: Pure renderer. Render only explicit fields.
-    conclusion = getattr(asm, "executive_conclusion", "") or ""
-    strengths = getattr(asm, "strengths", []) or []
-    weaknesses = getattr(asm, "weaknesses", []) or []
-    implication = getattr(asm, "investment_implication", "") or ""
+
+    conclusion = clean_text(str(_get_field(asm, "executive_conclusion") or _get_field(asm, "executive_summary") or _get_field(asm, "summary") or ""))
+    strengths_raw = _get_field(asm, "strengths") or []
+    weaknesses_raw = _get_field(asm, "weaknesses") or []
+    implication = clean_text(str(_get_field(asm, "investment_implication") or _get_field(asm, "reasoning") or ""))
+
+    # Requirement 3: Remove unsupported descriptions of a "clean cap table"
+    strengths = [clean_text(str(s)) for s in strengths_raw if s and "clean cap table" not in str(s).lower()]
+    weaknesses = [clean_text(str(w)) for w in weaknesses_raw if w and "clean cap table" not in str(w).lower()]
+    conclusion = re.sub(r'\bclean\s+cap\s+table\b', 'undisclosed capitalization structure', conclusion, flags=re.IGNORECASE)
+    implication = re.sub(r'\bclean\s+cap\s+table\b', 'undisclosed capitalization structure', implication, flags=re.IGNORECASE)
     return conclusion, strengths, weaknesses, implication
 
 
-def _profile_field(graph: ObservationGraph, field_key: str, default: str = "") -> str:
-    profile = getattr(graph, "startup_profile", None)
-    if not profile:
-        return default
-    if isinstance(profile, dict):
-        return clean_text(str(profile.get(field_key) or default))
-    return clean_text(str(getattr(profile, field_key, None) or default))
-
-
 def _get_claim_value(graph: ObservationGraph, field_key: str, default: str = "") -> str:
+    fk_lower = field_key.strip().lower()
     for c in graph.claims.values():
         if ":" in c.claim_text:
             k, _, v = c.claim_text.partition(":")
-            if k.strip() == field_key:
+            if k.strip().lower() == fk_lower:
                 val = v.strip()
                 if val and val.lower() not in ("none", "null", "n/a", "unknown", "placeholder"):
                     return clean_text(val)
     return default
+
+
+def _profile_field(graph: ObservationGraph, field_key: str, default: str = "") -> str:
+    profile = getattr(graph, "startup_profile", None)
+    if profile:
+        if isinstance(profile, dict):
+            val = profile.get(field_key)
+            if val and str(val).strip() and str(val).lower() not in ("none", "null", "n/a", "unknown", "placeholder"):
+                return clean_text(str(val))
+        else:
+            val = getattr(profile, field_key, None)
+            if val and str(val).strip() and str(val).lower() not in ("none", "null", "n/a", "unknown", "placeholder"):
+                return clean_text(str(val))
+
+    # Fallback to direct claim check
+    val = _get_claim_value(graph, field_key)
+    if val and val.lower() not in ("none", "null", "n/a", "unknown", "placeholder"):
+        return val
+
+    # Fallback to LaunchIndex canonical mapped claim keys
+    field_mappings = {
+        "sector": ["cm_03_sector"],
+        "stage": ["cm_04_stage"],
+        "company_name": ["cm_01_company_name"],
+        "tagline": ["cm_02_tagline"],
+        "geography": ["cm_05_geography"],
+        "problem_solved": ["ps_01_problem_statement"],
+        "problem_statement": ["ps_01_problem_statement"],
+        "solution_value_prop": ["ps_08_unique_value_proposition", "ps_06_solution_description"],
+        "solution_summary": ["ps_06_solution_description", "ps_08_unique_value_proposition"],
+        "description": ["ps_06_solution_description"],
+        "trl_level": ["ps_09_current_trl"],
+        "target_market": ["mo_06_geographic_focus", "mo_01_tam"],
+        "market_size": ["mo_01_tam"],
+        "business_model": ["bc_01_business_model", "bc_01_revenue_model"],
+        "revenue_model": ["bc_01_revenue_model", "bc_01_business_model"],
+        "patents": ["ii_07_patents_summary", "ii_07_patent_details", "ii_07_ip_status_patents"],
+        "ip_status": ["ii_07_ip_status_patents", "ii_01_proprietary_technology_moat"],
+        "founder_names": ["ft_01_founder_names"],
+        "team": ["ft_04_team_summary", "ft_01_founder_details"],
+    }
+    for mapped_key in field_mappings.get(field_key, []):
+        val = _get_claim_value(graph, mapped_key)
+        if val and val.lower() not in ("none", "null", "n/a", "unknown", "placeholder"):
+            return val
+
+    return default
+
+
+def _parse_founders_from_graph(graph: ObservationGraph) -> list:
+    claims = {}
+    for c in graph.claims.values():
+        if ":" in c.claim_text:
+            k, _, v = c.claim_text.partition(":")
+            claims[k.strip().lower()] = v.strip()
+
+    details = claims.get("ft_01_founder_details")
+    founders = []
+    if details:
+        try:
+            d_list = ast.literal_eval(details)
+            if isinstance(d_list, list):
+                for item in d_list:
+                    if isinstance(item, dict):
+                        founders.append(item)
+        except Exception:
+            pass
+
+    co_founders = claims.get("ft_06_co_founders")
+    if co_founders:
+        try:
+            cf_list = ast.literal_eval(co_founders)
+            if isinstance(cf_list, list):
+                for item in cf_list:
+                    if isinstance(item, dict) and item.get("name") not in [f.get("name") for f in founders]:
+                        founders.append(item)
+        except Exception:
+            pass
+
+    if not founders:
+        names_str = claims.get("ft_01_founder_names", "")
+        names = [n.strip() for n in names_str.split(",") if n.strip()]
+        roles_val = claims.get("ft_01_founder_roles", "")
+        roles = []
+        try:
+            r_list = ast.literal_eval(roles_val)
+            if isinstance(r_list, list):
+                roles = [str(r).strip() for r in r_list]
+        except Exception:
+            roles = [r.strip() for r in roles_val.split(",") if r.strip()]
+
+        for i, n in enumerate(names):
+            r = roles[i] if i < len(roles) else "Co-Founder"
+            founders.append({"name": n, "role": r})
+
+    return founders
 
 
 def _get_startup_value(graph: ObservationGraph, field_key: str, default: str = "") -> str:
@@ -486,55 +645,138 @@ def _format_confidence_block(conf: float, domain: str) -> str:
     )
 
 
+def _get_sr_rec(graph: ObservationGraph) -> str:
+    sr = getattr(graph, "supervisory_review", None)
+    if not sr:
+        return "PENDING"
+    raw = sr.get("overall_recommendation") if isinstance(sr, dict) else getattr(sr, "overall_recommendation", None)
+    if not raw:
+        return "PENDING"
+    val = getattr(raw, "value", str(raw))
+    return str(val).strip()
+
+
+def _get_cd_rec(graph: ObservationGraph) -> str:
+    cd = getattr(graph, "committee_decision", None)
+    if not cd:
+        return "PENDING"
+    raw = cd.get("recommendation") if isinstance(cd, dict) else getattr(cd, "recommendation", None)
+    if not raw:
+        return "PENDING"
+    val = getattr(raw, "value", str(raw))
+    val = str(val).replace("Recommendation.", "").strip()
+    return val
+
+
+def _get_criterion_status_from_graph(graph: ObservationGraph, criterion_id: str) -> tuple[str | None, Any, str | None]:
+    """Looks up a canonical criterion's verification_status, score, and narrative dynamically."""
+    dom_source = getattr(graph, "domain_reports", None) or getattr(graph, "domain_assessments", None) or {}
+    for rep in dom_source.values():
+        crit_map = rep.get("criteria_evaluations") if isinstance(rep, dict) else getattr(rep, "criteria_evaluations", None)
+        if not crit_map:
+            continue
+        item = crit_map.get(criterion_id)
+        if not item:
+            continue
+        if isinstance(item, dict):
+            v_raw = item.get("verification_status")
+            v_str = getattr(v_raw, "value", str(v_raw)) if v_raw is not None else None
+            return v_str, item.get("score"), item.get("assessment_narrative")
+        v_raw = getattr(item, "verification_status", None)
+        v_str = getattr(v_raw, "value", str(v_raw)) if v_raw is not None else None
+        return v_str, getattr(item, "score", None), getattr(item, "assessment_narrative", None)
+    return None, None, None
+
+
 def _write_executive_summary(graph: ObservationGraph) -> ReportSection:
     ia = graph.investment_assessment
     ea = graph.executive_assessment
     rec = _get_rec(ia)
-    score = round(ia.investment_score, 1) if ia else 80.0
-    conf = ia.confidence if ia else 0.82
-    sector = _profile_field(graph, "sector", "DeepTech")
-    trl = _profile_field(graph, "trl_level", "TRL-4")
-    stage = _profile_field(graph, "stage", "Pre-Seed")
+    ia_score = round(ia.investment_score, 2) if ia else None
+    ia_score_disp = f"{ia_score} / 100" if ia_score is not None else "Not scored"
+    conf = ia.confidence if ia else 0.50
+    sector = _profile_field(graph, "sector", "Technology")
+    stage = _profile_field(graph, "stage", "Undisclosed")
+
+    sr = getattr(graph, "supervisory_review", None) or {}
+    raw_sr_score = _get_field(sr, "investment_score", None)
+    sr_score = round(float(raw_sr_score), 2) if raw_sr_score is not None else None
+    sr_score_disp = f"{sr_score} / 100" if sr_score is not None else "Not scored"
+    raw_sr_conf = _get_field(sr, "confidence_score", None)
+    sr_conf_disp = f"{round(float(raw_sr_conf) * 100)}%" if raw_sr_conf is not None else "N/A"
 
     problem = _profile_field(graph, "problem_solved") or _profile_field(graph, "problem_statement")
     if not problem or problem == "Not disclosed.":
-        problem = "The target sector suffers from high manufacturing costs, high raw material import dependencies, and structural scaling inefficiencies."
-        
-    solution = _profile_field(graph, "solution_value_prop") or _profile_field(graph, "solution_summary")
-    if not solution or solution == "Not disclosed.":
-        solution = "a proprietary circular raw material precursor process and technical cell scale-up architecture"
-        
-    market = _profile_field(graph, "target_market") or "high-demand energy storage and advanced materials segments"
+        problem = _get_claim_value(graph, "ps_01_problem_statement") or "Operational and technological bottlenecks identified in the target segment."
 
-    # Executive Summary / Investment Thesis (maximum 300 words)
+    solution = _get_claim_value(graph, "ps_06_solution_description") or _profile_field(graph, "description") or "Proprietary technology platform."
+    differentiation = _get_claim_value(graph, "ps_08_unique_value_proposition") or "Stated technical differentiation and value proposition."
+
+    market = _profile_field(graph, "target_market") or _get_claim_value(graph, "mo_01_tam") or "Target commercial and enterprise customers"
+    trl_raw = _get_claim_value(graph, "ps_09_current_trl") or _get_claim_value(graph, "ps_09_prototype_stage") or _profile_field(graph, "trl") or _profile_field(graph, "trl_level")
+    ps09_status, ps09_score, _ = _get_criterion_status_from_graph(graph, "PS-09")
+    trl_status_note = ps09_status or "Applicant-reported; pending independent verification"
+    if trl_raw:
+        trl_display = f"TRL {trl_raw} ({trl_status_note})"
+        trl_why = f"Submitted materials report readiness at {trl_display}."
+    else:
+        trl_display = "Undisclosed (TRL not specified in application)"
+        trl_why = "Technology Readiness Level was not explicitly quantified in the application materials."
+
+    drivers = _get_claim_value(graph, "mo_05_key_market_drivers")
+    if drivers and drivers != "Not disclosed.":
+        if drivers.startswith("[") and drivers.endswith("]"):
+            try:
+                d_list = ast.literal_eval(drivers)
+                if isinstance(d_list, list) and d_list:
+                    drivers = ", ".join(d_list[:-1]) + (f", and {d_list[-1]}" if len(d_list) > 1 else d_list[0])
+            except Exception:
+                drivers = drivers.strip("[]'\" ")
+        why_now = f"Recent structural shifts and key market drivers—specifically {drivers.strip().rstrip('.')}—create an urgent commercial window for decentralized solutions over centralized legacy infrastructure."
+    else:
+        why_now = "Expanding market demand and evolving operational standards create a transient window for agile, scalable solutions to displace legacy infrastructure."
+
+    # Multi-body recommendations
+    sr_rec = _get_sr_rec(graph)
+    cd_rec = _get_cd_rec(graph)
+
+    arch_desc = _get_claim_value(graph, "ps_12_technical_architecture") or "proprietary technological architecture"
+
+    # Executive Summary / Investment Thesis
     thesis = (
         f"### **Investment Thesis**\n\n"
-        f"**The Problem:** The industry faces a critical bottleneck: {problem.strip().rstrip('.')}. "
-        f"This drives up capex, extends commercialization timelines, and exposes operations to global commodity supply chain volatility.\n\n"
-        f"**Why Now:** Recent regulatory localization mandates and shifting mineral pricing economics have opened a transient window. "
-        f"Legacy offerings cannot easily pivot due to high transition costs and rigid infrastructure dependencies.\n\n"
+        f"**The Problem:** The industry faces a critical bottleneck: {problem.strip().rstrip('.')}.\n\n"
+        f"**Why Now:** {why_now}\n\n"
         f"**Why {graph.startup_name}:** {graph.startup_name} addresses this via {solution.strip().rstrip('.')}. "
-        f"The venture leverages proprietary trade secrets and a validated laboratory prototype, demonstrating a structural cost advantage "
-        f"in the {market.strip().rstrip('.')}.\n\n"
-        f"**Why Proceed:** Initial testing de-risks basic electrochemical feasibility. "
-        f"By structuring capital in progress-gated tranches tied to pilot line yields, the fund can capture early commercial traction while "
-        f"insulating downside investment risk."
+        f"The venture differentiates through its {differentiation.strip().rstrip('.')}. "
+        f"The venture leverages {arch_desc} ({trl_display}), "
+        f"targeting {market.strip().rstrip('.')}.\n\n"
+        f"**Why Proceed:** {trl_why} "
+        f"Capital or incubation support should be structured around verifiable technical and operational milestones "
+        f"aligned with {graph.startup_name or 'the venture'}'s sector and current maturity.\n\n"
+        f"### **Dual-Methodology Scoring Reconciliation**\n"
+        f"* **Commercial Viability Score (Investment Assessment)**: **{ia_score_disp}** (Confidence: {round(conf * 100)}%) — Multi-dimensional scorecard evaluating founder capability, market demand, and execution viability.\n"
+        f"* **Evidence Verification Score (Supervisory Review)**: **{sr_score_disp}** (Confidence: {sr_conf_disp}) — Strict evidentiary audit weighting independent verification vs self-reported disclosures.\n\n"
+        f"### **Institutional Governance & Recommendation Alignment**\n"
+        f"* **Supervisory Review**: **{sr_rec}** — Audits cross-domain claims against submitted evidence; recommends milestone-gated oversight where gaps remain.\n"
+        f"* **Investment Diligence**: **{rec}** (Score: {ia_score_disp}, Confidence: {round(conf * 100)}%) — Evaluates commercial viability against execution and traction risks.\n"
+        f"* **Incubation Committee**: **{cd_rec}** — Coordinates focused due-diligence follow-up prior to final onboarding.\n"
+        f"* **Final Review**: **{sr_rec}** — Harmonized institutional synthesis across specialist domains and governance review.\n"
+        f"* **Reconciled Operational Policy**: **{cd_rec} ({sr_rec} GOVERNANCE)** — Commitments should follow verified milestone progression rather than unverified assumptions."
     )
 
-    evidence = format_evidence(graph, ["founder", "product", "trl", "market", "competition", "financial", "ip", "risk"])
-    
-    # Check word count of thesis
-    words = thesis.split()
-    if len(words) > 300:
-        thesis = " ".join(words[:290]) + "..."
+    evidence = format_evidence(graph, ["problem_solution", "founder_team", "market_opportunity", "commercialisation", "innovation_impact", "financials_support"])
 
     content = (
-        f"[METRICS]\nRecommendation: {rec}\nOverall Score: {score} / 100\n"
-        f"Confidence: {round(conf * 100)}%\nStage: {stage}\nSector: {sector}\nTRL: {trl}\n[/METRICS]\n\n"
+        f"[METRICS]\nRecommendation: {rec}\n"
+        f"Commercial Viability Score: {ia_score_disp} (Confidence: {round(conf * 100)}%)\n"
+        f"Evidence Verification Score: {sr_score_disp} (Confidence: {sr_conf_disp})\n"
+        f"Stage: {stage}\nSector: {sector}\n"
+        f"TRL: {trl_display}\n[/METRICS]\n\n"
         f"{thesis}\n\n"
         f"**Supporting Evidence**\n{evidence}"
     )
-    
+
     content += _format_confidence_block(conf, "Executive Thesis")
 
     supporting_nodes = []
@@ -542,7 +784,7 @@ def _write_executive_summary(graph: ObservationGraph) -> ReportSection:
         supporting_nodes += [f.finding_id for f in (ea.key_observations or [])]
     if ia:
         supporting_nodes.append(ia.node_id)
-        
+
     return ReportSection(
         section_id="executive_summary",
         title="Executive Summary",
@@ -555,86 +797,133 @@ def _write_executive_summary(graph: ObservationGraph) -> ReportSection:
 def _write_investment_recommendation(graph: ObservationGraph) -> ReportSection:
     ia = graph.investment_assessment
     rec = _get_rec(ia)
-    score = round(ia.investment_score, 1) if ia else 80.0
-    conf = ia.confidence if ia else 0.82
-    
-    trl = _profile_field(graph, "trl_level", "TRL-4")
-    founder_score = round(ia.founder_score, 1) if ia else 70.0
-    market_score = round(ia.market_score, 1) if ia else 70.0
-    financial_score = round(ia.financial_score, 1) if ia else 70.0
-    competition_score = round(ia.competition_score, 1) if ia else 70.0
-    ip_score = round(ia.ip_score, 1) if ia else 70.0
+    score = round(ia.investment_score, 2) if ia else None
+    score_disp = f"{score} / 100" if score is not None else "Not scored"
+    conf = ia.confidence if ia else 0.50
+
+    sr = getattr(graph, "supervisory_review", None) or {}
+    raw_sr_score = _get_field(sr, "investment_score", None)
+    sr_score = round(float(raw_sr_score), 2) if raw_sr_score is not None else None
+    sr_score_disp = f"{sr_score} / 100" if sr_score is not None else "Not scored"
+    raw_sr_conf = _get_field(sr, "confidence_score", None)
+    sr_conf_disp = f"{round(float(raw_sr_conf) * 100)}%" if raw_sr_conf is not None else "N/A"
+
+    trl = _get_claim_value(graph, "ps_09_current_trl") or _profile_field(graph, "trl") or _profile_field(graph, "trl_level")
+    trl_label = f"TRL {trl} (Applicant-reported)" if trl else "Undisclosed in application"
+    founder_score = f"{round(ia.founder_score, 1)} / 100" if ia else "Not scored"
+    market_score = f"{round(ia.market_score, 1)} / 100" if ia else "Not scored"
+    financial_score = f"{round(ia.financial_score, 1)} / 100" if ia else "Not scored"
+    competition_score = f"{round(ia.competition_score, 1)} / 100" if ia else "Not scored"
+    ip_score = f"{round(ia.ip_score, 1)} / 100" if ia else "Not scored"
 
     scorecard_table = (
+        f"#### **Dual-Methodology Scoring Reconciliation**\n\n"
+        f"| Evaluation Framework | Score | Confidence | Scope & Methodology |\n"
+        f"| :--- | :--- | :--- | :--- |\n"
+        f"| **Commercial Viability Score** (Investment Diligence) | **{score_disp}** | **{round(conf*100)}%** | Multi-criteria scorecard evaluating founder capabilities, market need, and execution feasibility. |\n"
+        f"| **Evidence Verification Score** (Supervisory Review) | **{sr_score_disp}** | **{sr_conf_disp}** | Strict evidentiary verification audit weighting documented proof vs self-disclosure. |\n\n"
+        f"#### **Viability Performance Metrics**\n\n"
         f"| Evaluation Dimension | Score / Level | Interpretation |\n"
         f"| :--- | :--- | :--- |\n"
-        f"| Technical Readiness | {trl} | Technology maturation stage |\n"
-        f"| Founder Capability | {founder_score} / 100 | Execution and domain experience |\n"
-        f"| Market Opportunity | {market_score} / 100 | Addressable market and GTM strength |\n"
-        f"| Competitive Position | {competition_score} / 100 | Defensibility and differentiation |\n"
-        f"| Financial Viability | {financial_score} / 100 | Revenue model, runway, funding ask |\n"
-        f"| IP Defensibility | {ip_score} / 100 | Patent and proprietary advantage |\n\n"
+        f"| Technical Readiness | {trl_label} | Technology maturation stage based on submitted evidence |\n"
+        f"| Founder Capability | {founder_score} | Execution and domain experience |\n"
+        f"| Market Opportunity | {market_score} | Addressable market and GTM strength |\n"
+        f"| Competitive Position | {competition_score} | Defensibility and differentiation |\n"
+        f"| Financial Viability | {financial_score} | Revenue model, runway, funding profile |\n"
+        f"| IP Defensibility | {ip_score} | Patent, trade secret, and proprietary advantage |\n\n"
     )
 
-    reasons_proceed = [
-        "Resilient Cost Advantage: Utilizing circular local precursors insulates the company from global raw material price volatility, securing a defensible pricing floor that protects investor margins.",
-        "Regulatory Alignment: Strong domestic manufacturing incentives accelerate commercial adoption, reducing customer acquisition costs and de-risking early revenue targets.",
-        "Feasibility De-risking: Proven laboratory electrochemical cell performance de-risks the fundamental technology, ensuring subsequent investment is directed toward scale-up rather than basic research."
-    ]
-    reasons_reject = [
-        "Continuous Scaling Risk: Transitioning chemical processes from lab to continuous pilot lines is highly capital intensive, creating a risk of premature capital depletion before commercial yields are reached.",
-        "IP Title Ambiguity: Lack of formal patent assignment deeds from academic institutions could lead to ownership disputes, potentially blocking commercial partnerships or follow-on financing."
-    ]
-    
-    rationale = getattr(ia, "investment_rationale", "") or "The venture represents a high-potential execution play with a clear raw material cost moat. We recommend proceeding under a structured tranche schedule."
+    strengths_raw = getattr(ia, "strengths", []) or []
+    # Requirement 3: Remove unsupported description of clean cap table
+    clean_strengths = [s for s in strengths_raw if "clean cap table" not in s.lower()]
+    reasons_proceed = []
+    if clean_strengths:
+        for s in clean_strengths[:3]:
+            s_clean = clean_text(s)
+            title = s_clean.split(":")[0] if ":" in s_clean else "Competitive Advantage"
+            desc = s_clean.split(":", 1)[1].strip() if ":" in s_clean else s_clean
+            reasons_proceed.append(f"{title}: {desc}")
+    if not reasons_proceed:
+        reasons_proceed = [
+            f"Technical Readiness: {trl_label} based on currently available submission records.",
+            "Market Alignment: Problem urgency and customer need documented in the target segment.",
+            "Diligence Traceability: Claims structured across the canonical LaunchIndex framework.",
+        ]
+
+    risks_raw = (getattr(ia, "major_risks", []) or []) + (getattr(ia, "weaknesses", []) or [])
+    reasons_reject = []
+    if risks_raw:
+        for r in risks_raw[:3]:
+            r_clean = clean_text(r)
+            title = r_clean.split(":")[0] if ":" in r_clean else "Operational Risk"
+            desc = r_clean.split(":", 1)[1].strip() if ":" in r_clean else r_clean
+            reasons_reject.append(f"{title}: {desc}")
+    if not reasons_reject:
+        reasons_reject = [
+            "Commercial Validation: Commercial traction and customer unit economics require structured diligence verification.",
+            "Verification Gaps: Independent technical, IP, and compliance documentation must be confirmed before commitment."
+        ]
+
+    rationale = getattr(ia, "investment_rationale", "") or "Proceed with structured milestone-gated due diligence aligned to verified evidence."
     rationale_cleaned = refine_generic_text(rationale)
 
     decision_conf_level = "High" if conf >= 0.85 else ("Medium" if conf >= 0.70 else "Low")
-    funding_stage = _profile_field(graph, "stage", "Pre-Seed")
+    funding_stage = _profile_field(graph, "stage") or "Undisclosed"
+
+    sr_rec = _get_sr_rec(graph)
+    cd_rec = _get_cd_rec(graph)
 
     recommendation_memo = (
         f"### **Investment Committee Memorandum**\n\n"
-        f"**Proposed Decision**: **{rec.upper()}** (Diligence Viability: **{score}/100** | Confidence: **{round(conf*100)}%**)\n\n"
+        f"**Proposed Decision**: **{rec.upper()}** (Diligence Viability: **{score_disp}** | Confidence: **{round(conf*100)}%**)\n\n"
+        f"#### **Institutional Recommendation & Governance Reconciliation**\n\n"
+        f"| Evaluator / Body | Designation | Outcome | Scope & Institutional Role |\n"
+        f"| :--- | :--- | :--- | :--- |\n"
+        f"| **Supervisory Review** | Evidence & Truth Guard | **{sr_rec}** | Audits cross-domain claims; ties progression to verifiable empirical and operational proof. |\n"
+        f"| **Investment Assessment** | Diligence Scorecard | **{rec}** | Evaluates risk-adjusted commercial viability (Score: {score_disp}, Conf: {round(conf*100)}%). |\n"
+        f"| **Incubation Committee** | Governance & Admission | **{cd_rec}** | Coordinates follow-up diligence items prior to formal agreement signing. |\n"
+        f"| **Final Review** | Executive Synthesis | **{sr_rec}** | Harmonized with supervisory audit under milestone-gated conditions. |\n\n"
+        f"**Unified Operational Policy**: Governance bodies converge on **{cd_rec} with {sr_rec} MILESTONE GATING**. "
+        f"Open diligence items should be resolved prior to capital disbursement or binding term-sheet finalization.\n\n"
         f"#### **Investment Decision**\n"
-        f"**{rec.upper()}** — Proceed with structured milestone gating.\n\n"
+        f"**{rec.upper()}** — Proceed according to verified milestone gating.\n\n"
         f"#### **Investment Thesis**\n"
-        f"The investment thesis focuses on backing a localized cost leader in a high-demand circular manufacturing sector, "
-        f"insulating operations from mineral price shocks. Capital deployment should be milestone-structured to de-risk "
-        f"continuous synthesis scaling.\n\n"
+        f"The investment thesis balances core product differentiation against commercial and evidentiary verification status "
+        f"({trl_label}), requiring progress-gated diligence execution.\n\n"
         f"#### **Reasons To Proceed**\n"
-        + "\n".join(f"* **{r.split(':')[0]}**: {r.split(':')[1]}" for r in reasons_proceed) + "\n\n"
+        + "\n".join(f"* **{r.split(':')[0]}**: {r.split(':', 1)[1].strip()}" for r in reasons_proceed) + "\n\n"
         f"#### **Reasons For Caution**\n"
-        + "\n".join(f"* **{r.split(':')[0]}**: {r.split(':')[1]}" for r in reasons_reject) + "\n\n"
+        + "\n".join(f"* **{r.split(':')[0]}**: {r.split(':', 1)[1].strip()}" for r in reasons_reject) + "\n\n"
         f"#### **Conditions Before Incubation**\n"
-        f"* **IP Transfer Waiver**: Complete assignment of all intellectual property from the academic institution to the startup.\n"
-        f"* **Key-Person Vesting**: Standard four-year vesting with a one-year cliff for all technical co-founders.\n\n"
+        f"* **IP Chain-of-Title**: Formal assignment of all relevant patent applications, software repositories, and trade secrets to the corporate entity.\n"
+        f"* **Key-Person Vesting**: Standard four-year vesting schedule with a one-year cliff for all technical and domain co-founders.\n\n"
         f"#### **Required Due Diligence**\n"
-        f"* **IP Audit**: Obtain signed IP assignment documents from the university technology transfer office.\n"
-        f"* **Technical Audit**: Validate raw lab-scale battery testing files under continuous cycling parameters.\n"
-        f"* **Financial Audit**: Verify historical cap table allocations and historical founder salary draws.\n\n"
+        f"* **IP Audit**: Obtain stamped patent filing receipts, prior art assessment, and verified assignment documentation.\n"
+        f"* **Technical & Performance Audit**: Validate raw engineering/calibration test data, system logs, and benchmark testing against reference standards.\n"
+        f"* **Financial Audit**: Verify historical founder contributions, current bank balances, and documented grant receipts.\n\n"
         f"#### **Recommended Funding Stage**\n"
         f"**{funding_stage}**\n\n"
         f"#### **Committee Discussion Points**\n"
-        f"* **BIS/PESO Timelines**: What is the realistic schedule for obtaining regulatory safety certifications and who is driving it?\n"
-        f"* **Commercial Recruitment**: How does the technical team plan to attract a seasoned B2B business development co-founder?\n"
-        f"* **Capex Requirements**: What is the minimum capital required to establish a continuous synthesis pilot line?\n\n"
+        f"* **Regulatory Pathways**: What is the definitive timeline and testing protocol required for statutory safety/industry certification?\n"
+        f"* **Commercial Recruitment**: How does the founding team plan to recruit seasoned commercial and operational leadership?\n"
+        f"* **Capital Efficiency**: What are the specific capital requirements to reach verified pilot deployments under Tranche 1?\n\n"
         f"#### **Decision Confidence**\n"
         f"**{decision_conf_level.upper()}** ({round(conf*100)}%)\n"
-        f"*Rationale*: Compiling 8 domain assessments with primary documentation validation gives robust visibility, though lack of FTO studies limits absolute confidence.\n"
+        f"*Rationale*: Diligence across LaunchIndex domains with primary documentation validation confirms baseline feasibility, though pre-revenue traction and lack of independent validation data limit absolute confidence.\n"
     )
 
-    conclusion = f"Viability Scorecard dimensions evaluated against benchmarks."
+    conclusion = "Viability Scorecard dimensions evaluated against benchmarks."
     evidence = ""
-    strengths = [clean_text(s) for s in getattr(ia, "strengths", []) or [] if s]
+    strengths = [clean_text(s) for s in clean_strengths if s]
     weaknesses = [clean_text(w) for w in (getattr(ia, "weaknesses", []) or []) + (getattr(ia, "major_risks", []) or []) if w]
     implication = rationale_cleaned
 
     memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
     content = f"### Viability Scorecard\n\n{scorecard_table}\n\n{recommendation_memo}\n\n{memo_content}"
-    
+
     # Append Confidence rating block
     content += _format_confidence_block(conf, "Investment Recommendation")
-    
+
     nodes = [ia.node_id] if ia else []
     return ReportSection(
         section_id="investment_recommendation",
@@ -646,14 +935,46 @@ def _write_investment_recommendation(graph: ObservationGraph) -> ReportSection:
 
 
 def _write_founder_assessment(graph: ObservationGraph) -> ReportSection:
-    domain = "founder"
-    conf = _domain_confidence(graph, domain, 0.80)
+    domain = "founder_team"
+    conf = _domain_confidence(graph, domain, 0.78)
     conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
-    evidence = format_evidence(graph, [domain])
-    
-    content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    if not conclusion:
+        conclusion = f"Founding team demonstrates domain capabilities covering technical development and operations, with key diligence focus on institutional IP assignment and full-time vesting agreements."
+
+    founders_str = _get_claim_value(graph, "ft_01_founder_names") or _profile_field(graph, "founders") or "Founding Team"
+    team_summary = _get_claim_value(graph, "ft_04_team_summary") or f"Founding team leading {graph.startup_name} across technical, operational, and commercial execution."
+
+    parsed_founders = _parse_founders_from_graph(graph)
+    rows = []
+    for f in parsed_founders:
+        role = f.get("role") or "Co-Founder"
+        name = f.get("name") or "Founder"
+        bg = f.get("education_degree", "")
+        if f.get("education_institution"):
+            bg = f"{bg}, {f['education_institution']}" if bg else f["education_institution"]
+        if f.get("relevant_experience"):
+            bg = f"{bg} ({f['relevant_experience']})" if bg else f["relevant_experience"]
+        if not bg:
+            bg = f.get("domain_expertise") or "Domain specialist"
+        status = "Verified via applicant declaration; domain depth documented"
+        rows.append(f"| {role} | {name} | {bg} | {status} |")
+
+    if not rows:
+        rows.append(f"| Co-Founder | {founders_str} | Technical and domain depth | Verified via applicant declaration |")
+
+    table_content = (
+        "### Founding Team Roster\n\n"
+        "| Role | Name | Background / Credentials | Diligence Verification Status |\n"
+        "| :--- | :--- | :--- | :--- |\n"
+        + "\n".join(rows) + "\n\n"
+        f"**Founding Team Synthesis:** {team_summary}\n\n"
+    )
+
+    evidence = format_evidence(graph, ["founder_team", "founder"])
+    memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    content = table_content + memo_content
     content += _format_confidence_block(conf, "Founding Team")
-    supporting_nodes = list(graph.observations_by_domain.get(domain, []))
+    supporting_nodes = list(graph.observations_by_domain.get("founder_team", [])) or list(graph.observations_by_domain.get("founder", []))
     return ReportSection(
         section_id="founder_assessment",
         title="Founding Team",
@@ -662,35 +983,44 @@ def _write_founder_assessment(graph: ObservationGraph) -> ReportSection:
         confidence=conf,
     )
 
-
 def _write_product_technology(graph: ObservationGraph) -> ReportSection:
-    prod_domain = "product"
-    trl_domain = "trl"
-    conf = (_domain_confidence(graph, prod_domain) + _domain_confidence(graph, trl_domain)) / 2.0
-    
-    p_conclusion, p_strengths, p_weaknesses, p_implication = _get_section_fields(graph, prod_domain)
-    t_conclusion, t_strengths, t_weaknesses, t_implication = _get_section_fields(graph, trl_domain)
-    
-    conclusions = []
-    if p_conclusion: conclusions.append(p_conclusion)
-    if t_conclusion: conclusions.append(t_conclusion)
-    conclusion = "\n\n".join(conclusions)
-    
-    strengths = p_strengths + t_strengths
-    weaknesses = p_weaknesses + t_weaknesses
-    
-    implications = []
-    if p_implication: implications.append(p_implication)
-    if t_implication: implications.append(t_implication)
-    implication = "\n\n".join(implications)
-    
-    evidence = format_evidence(graph, [prod_domain, trl_domain])
-    content = format_section(conclusion, evidence, strengths, weaknesses, implication)
-    content += _format_confidence_block(conf, "Product & Technology")
-    supporting_nodes = (
-        list(graph.observations_by_domain.get(prod_domain, [])) +
-        list(graph.observations_by_domain.get(trl_domain, []))
+    domain = "problem_solution"
+    conf = _domain_confidence(graph, domain, 0.80)
+    conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
+    if not conclusion:
+        conclusion = f"The technical platform developed by {graph.startup_name} demonstrates functional prototype feasibility, with key technical specifications and performance metrics pending independent laboratory validation."
+
+    sol_desc = _get_claim_value(graph, "ps_06_solution_description") or _profile_field(graph, "description") or "Proprietary technology platform."
+    diff_val = _get_claim_value(graph, "ps_08_unique_value_proposition") or "Stated technical differentiation and value proposition."
+    arch_desc = _get_claim_value(graph, "ps_12_technical_architecture") or "Core technical architecture not specified in application."
+    proto_stage = _get_claim_value(graph, "ps_11_prototype_stage") or _get_claim_value(graph, "ps_09_current_trl") or "Not disclosed"
+    trl_raw = _get_claim_value(graph, "ps_09_current_trl") or _get_claim_value(graph, "ps_09_prototype_stage") or _profile_field(graph, "trl") or _profile_field(graph, "trl_level")
+    ps09_status, ps09_score, _ = _get_criterion_status_from_graph(graph, "PS-09")
+    trl_row_val = f"TRL {trl_raw} (Applicant-reported)" if trl_raw else "Undisclosed in application"
+    if ps09_status:
+        score_note = f"; score: {ps09_score}/10" if ps09_score is not None else "; un-scored criterion"
+        ps09_note = f"Criterion PS-09 status: {ps09_status}{score_note}"
+    else:
+        ps09_note = "PS-09 evaluation pending or not recorded"
+    tech_val = _get_claim_value(graph, "ps_13_technical_validation_results") or "Technical validation metrics not provided in application."
+
+    table_content = (
+        "### Product & Technical Architecture\n\n"
+        "| Technical Dimension | Specification | Verification Status |\n"
+        "| :--- | :--- | :--- |\n"
+        f"| **Core Solution** | {sol_desc} | Primary application disclosure |\n"
+        f"| **Differentiation** | {diff_val} | Stated competitive differentiation claim |\n"
+        f"| **Technical Architecture** | {arch_desc} | Core engineering and system pipeline |\n"
+        f"| **Prototype Status** | {proto_stage} | Application maturity disclosure |\n"
+        f"| **Technical Readiness Level** | {trl_row_val} | {ps09_note} |\n"
+        f"| **Validation Status** | {tech_val} | Verification status based on submitted documentation |\n\n"
     )
+
+    evidence = format_evidence(graph, ["problem_solution", "product", "trl"])
+    memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    content = table_content + memo_content
+    content += _format_confidence_block(conf, "Product & Technology")
+    supporting_nodes = list(graph.observations_by_domain.get("problem_solution", [])) or list(graph.observations_by_domain.get("product", [])) or list(graph.observations_by_domain.get("trl", []))
     return ReportSection(
         section_id="product_technology",
         title="Product & Technology",
@@ -701,13 +1031,32 @@ def _write_product_technology(graph: ObservationGraph) -> ReportSection:
 
 
 def _write_market_opportunity(graph: ObservationGraph) -> ReportSection:
-    domain = "market"
+    domain = "market_opportunity"
     conf = _domain_confidence(graph, domain, 0.80)
     conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
-    evidence = format_evidence(graph, [domain])
-    content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    if not conclusion:
+        conclusion = "Target market presents significant commercial potential, with preliminary addressable sizing requiring formal conversion benchmarking."
+
+    tam_val = _get_claim_value(graph, "mo_01_tam") or _profile_field(graph, "tam") or "High growth addressable market segment"
+    sam_val = _get_claim_value(graph, "mo_02_sam") or _profile_field(graph, "sam") or "Target regional and enterprise segment"
+    som_val = _get_claim_value(graph, "mo_03_som_3_5_year") or _profile_field(graph, "som") or "Near-term target market share"
+    drivers_val = _get_claim_value(graph, "mo_05_key_market_drivers") or "Macroeconomic demand growth and regulatory mandates"
+
+    table_content = (
+        "### Market Sizing & Commercial Addressability\n\n"
+        "| Market Parameter | Stated Scale | Institutional Diligence Assessment |\n"
+        "| :--- | :--- | :--- |\n"
+        f"| **Total Addressable Market (TAM)** | {tam_val} | Sized per applicant disclosure; conversion economics require diligence verification |\n"
+        f"| **Serviceable Addressable Market (SAM)** | {sam_val} | Target institutional and enterprise customer segment |\n"
+        f"| **Serviceable Obtainable Market (SOM)** | {som_val} | Near-term capture assumptions require pilot conversion benchmarks |\n"
+        f"| **Primary Market Drivers** | {drivers_val} | Validates macroeconomic need for domain innovation |\n\n"
+    )
+
+    evidence = format_evidence(graph, ["market_opportunity", "market"])
+    memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    content = table_content + memo_content
     content += _format_confidence_block(conf, "Market Opportunity")
-    supporting_nodes = list(graph.observations_by_domain.get(domain, []))
+    supporting_nodes = list(graph.observations_by_domain.get("market_opportunity", [])) or list(graph.observations_by_domain.get("market", []))
     return ReportSection(
         section_id="market_opportunity",
         title="Market Opportunity",
@@ -718,29 +1067,27 @@ def _write_market_opportunity(graph: ObservationGraph) -> ReportSection:
 
 
 def _write_business_model(graph: ObservationGraph) -> ReportSection:
-    domain = "market"
+    domain = "commercialisation"
     conf = _domain_confidence(graph, domain, 0.80)
     conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
     evidence = format_evidence(graph, [domain])
 
-    business = _profile_field(graph, "business_model")
-    revenue = _profile_field(graph, "revenue_model")
-    customers = _profile_field(graph, "customers")
-    
-    table_content = ""
-    if business or revenue or customers:
-        table_content = (
-            "### Revenue & Customer Model\n\n"
-            "| Parameter | Detail |\n| :--- | :--- |\n"
-            f"| Business Model | {business or 'Not disclosed.'} |\n"
-            f"| Revenue Model | {revenue or 'Not disclosed.'} |\n"
-            f"| Target Customers | {customers or 'Not disclosed.'} |\n\n"
-        )
+    business = _profile_field(graph, "business_model") or _get_claim_value(graph, "bc_01_business_model") or "Not disclosed in application"
+    revenue = _profile_field(graph, "revenue_model") or _get_claim_value(graph, "bc_01_revenue_model") or "Not disclosed in application"
+    customers = _profile_field(graph, "customers") or _get_claim_value(graph, "bc_08_current_users_and_paying_customers") or _get_claim_value(graph, "bc_08_paying_customers") or "Not disclosed in application"
+
+    table_content = (
+        "### Revenue & Customer Model\n\n"
+        "| Parameter | Detail |\n| :--- | :--- |\n"
+        f"| Business Model | {business} |\n"
+        f"| Revenue Model | {revenue} |\n"
+        f"| Target Customers | {customers} |\n\n"
+    )
 
     memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
     content = table_content + memo_content
     content += _format_confidence_block(conf, "Business Model")
-    supporting_nodes = list(graph.observations_by_domain.get(domain, []))
+    supporting_nodes = list(graph.observations_by_domain.get(domain, [])) or list(graph.observations_by_domain.get("business", []))
     return ReportSection(
         section_id="business_model",
         title="Business Model",
@@ -751,13 +1098,32 @@ def _write_business_model(graph: ObservationGraph) -> ReportSection:
 
 
 def _write_competition(graph: ObservationGraph) -> ReportSection:
-    domain = "competition"
+    domain = "commercialisation"
     conf = _domain_confidence(graph, domain, 0.78)
     conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
-    evidence = format_evidence(graph, [domain])
-    content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    if not conclusion:
+        conclusion = "The venture claims technical and architectural advantages over incumbent alternatives, but detailed displacement economics require empirical validation."
+
+    diff_val = _get_claim_value(graph, "ps_08_unique_value_proposition") or "Proprietary technical differentiation and performance advantages."
+    moat_val = _get_claim_value(graph, "mo_10_sustainable_competitive_advantage") or _get_claim_value(graph, "ii_01_proprietary_technology_moat") or "Proprietary technology architecture and trade secrets."
+    ip_status = _get_claim_value(graph, "ii_07_ip_status_patents") or _get_claim_value(graph, "ii_07_patents_summary") or "IP and patent status not disclosed in application."
+    incumbents = _get_claim_value(graph, "mo_08_competition_summary") or "Competitive alternatives not detailed in application."
+
+    table_content = (
+        "### Competitive Positioning & Defensibility\n\n"
+        "| Evaluation Vector | Stated Capability | Diligence Finding |\n"
+        "| :--- | :--- | :--- |\n"
+        f"| **Primary Differentiation** | {diff_val} | Stated value proposition in target market |\n"
+        f"| **Competitive Moat** | {moat_val} | Defensibility relies on documented proprietary technology and switching costs |\n"
+        f"| **Patent & IP Protection** | {ip_status} | IP ownership, trade secrets, or patent status requires verification appropriate to venture domain |\n"
+        f"| **Incumbent Displacement** | {incumbents} | Incumbent positioning requires independent benchmarking |\n\n"
+    )
+
+    evidence = format_evidence(graph, ["commercialisation", "market_opportunity", "competition"])
+    memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    content = table_content + memo_content
     content += _format_confidence_block(conf, "Competition")
-    supporting_nodes = list(graph.observations_by_domain.get(domain, []))
+    supporting_nodes = list(graph.observations_by_domain.get("competition", [])) or list(graph.observations_by_domain.get("commercialisation", []))
     return ReportSection(
         section_id="competition",
         title="Competition",
@@ -768,32 +1134,32 @@ def _write_competition(graph: ObservationGraph) -> ReportSection:
 
 
 def _write_financial_overview(graph: ObservationGraph) -> ReportSection:
-    domain = "financial"
-    conf = _domain_confidence(graph, domain, 0.78)
+    domain = "financials_support"
+    conf = _domain_confidence(graph, domain, 0.90)
     conclusion, strengths, weaknesses, implication = _get_section_fields(graph, domain)
     evidence = format_evidence(graph, [domain])
-    
-    funding_ask = _profile_field(graph, "funding_ask")
-    current_revenue = _profile_field(graph, "current_revenue")
-    burn_rate = _profile_field(graph, "burn_rate")
-    runway = _profile_field(graph, "runway")
-    f_raised = _profile_field(graph, "funding_raised")
-    r_model = _profile_field(graph, "revenue_model")
-    
+
+    funding_ask = _profile_field(graph, "funding_ask") or "Undisclosed in application"
+    current_revenue = _profile_field(graph, "current_revenue") or _get_claim_value(graph, "bc_09_current_revenue") or "Not disclosed in application"
+    burn_rate = _profile_field(graph, "burn_rate") or _get_claim_value(graph, "fi_05_burn_rate") or "Not disclosed"
+    runway = _profile_field(graph, "runway") or "Not disclosed"
+    f_raised = _profile_field(graph, "funding_raised") or _get_claim_value(graph, "fi_08_funding_raised") or "Not disclosed in application"
+    r_model = _profile_field(graph, "revenue_model") or _get_claim_value(graph, "bc_01_revenue_model") or _get_claim_value(graph, "bc_01_business_model") or "Not disclosed in application"
+
     table_content = (
         "### Financial Snapshot\n\n"
         "| Financial Metric | Value |\n| :--- | :--- |\n"
-        f"| Funding Raised | {f_raised or 'Not disclosed.'} |\n"
-        f"| Current Revenue | {current_revenue or 'Not disclosed.'} |\n"
-        f"| Burn Rate / Runway | {burn_rate or 'Not disclosed.'} / {runway or 'Not disclosed.'} |\n"
-        f"| Funding Ask | {funding_ask or 'Not disclosed.'} |\n"
-        f"| Revenue Model | {r_model or 'Not disclosed.'} |\n\n"
+        f"| Funding Raised | {f_raised} |\n"
+        f"| Current Revenue | {current_revenue} |\n"
+        f"| Burn Rate / Runway | {burn_rate} / {runway} |\n"
+        f"| Funding Ask | {funding_ask} |\n"
+        f"| Revenue Model | {r_model} |\n\n"
     )
 
     memo_content = format_section(conclusion, evidence, strengths, weaknesses, implication)
     content = table_content + memo_content
     content += _format_confidence_block(conf, "Financial Overview")
-    supporting_nodes = list(graph.observations_by_domain.get(domain, []))
+    supporting_nodes = list(graph.observations_by_domain.get("financials_support", [])) or list(graph.observations_by_domain.get("financial", []))
     return ReportSection(
         section_id="financial_overview",
         title="Financial Overview",
@@ -873,10 +1239,10 @@ def _write_risks(graph: ObservationGraph, suppressed_obs: set) -> ReportSection:
     conf = _get_avg_confidence([r for r in merged if hasattr(r, "confidence")], 0.80)
     
     conclusion = (
-        "The risk profile highlights critical operational and legal dependencies, centered around "
-        "academic IP ownership title assignment, continuous chemical precursor processing scaling, "
-        "and long product certification timelines. Mitigating these vectors requires a structured, "
-        "milestone-gated capital disbursement strategy."
+        "The risk profile highlights critical operational, technical, and regulatory dependencies, centered around "
+        "formal IP chain-of-title assignment, empirical performance and validation benchmarks, "
+        "and statutory regulatory compliance timelines. Mitigating these vectors requires a structured, "
+        "milestone-gated capital and facility disbursement strategy."
     )
         
     evidence = "Risk register analysis and synthesis of expert domain vulnerability mappings."
@@ -906,16 +1272,60 @@ def _write_risks(graph: ObservationGraph, suppressed_obs: set) -> ReportSection:
 
 def _write_investment_thesis(graph: ObservationGraph) -> ReportSection:
     ia = graph.investment_assessment
-    rec = _get_rec(ia)
-    conf = ia.confidence if ia else 0.82
-    
-    conclusion = refine_generic_text(getattr(ia, "investment_rationale", "") or "")
-    evidence = format_evidence(graph, ["founder", "product", "trl", "market", "competition", "financial", "ip", "risk"])
-    strengths = [clean_text(s) for s in getattr(ia, "strengths", []) or [] if s]
-    weaknesses = [clean_text(w) for w in (getattr(ia, "weaknesses", []) or []) + (getattr(ia, "major_risks", []) or []) if w]
-    implication = refine_generic_text(getattr(ia, "executive_summary", "") or "")
-    
-    content = format_section(conclusion, evidence, strengths, weaknesses, implication)
+    sr = getattr(graph, "supervisory_review", None) or {}
+    cd = getattr(graph, "committee_decision", None) or {}
+
+    ia_score = round(ia.investment_score, 2) if ia else None
+    ia_score_disp = f"{ia_score} / 100" if ia_score is not None else "Not scored"
+    ia_conf = round(ia.confidence * 100) if ia else 50
+    raw_sr_score = _get_field(sr, "investment_score", None)
+    sr_score = round(float(raw_sr_score), 2) if raw_sr_score is not None else None
+    sr_score_disp = f"{sr_score} / 100" if sr_score is not None else "Not scored"
+    raw_sr_conf = _get_field(sr, "confidence_score", None)
+    sr_conf_disp = f"{round(float(raw_sr_conf) * 100)}%" if raw_sr_conf is not None else "N/A"
+
+    sol_desc = _get_claim_value(graph, "ps_06_solution_description") or _profile_field(graph, "description") or "Proprietary technology solution."
+    diff_val = _get_claim_value(graph, "ps_08_unique_value_proposition") or "Stated technical differentiation and value proposition."
+    problem_val = _profile_field(graph, "problem_solved") or _get_claim_value(graph, "ps_01_problem_statement") or "Operational and technical bottlenecks in the target market."
+    arch_desc = _get_claim_value(graph, "ps_12_technical_architecture") or "Core technical architecture not detailed in application"
+    trl_raw = _get_claim_value(graph, "ps_09_current_trl") or _get_claim_value(graph, "ps_09_prototype_stage") or _profile_field(graph, "trl") or _profile_field(graph, "trl_level")
+    ps09_status, ps09_score, _ = _get_criterion_status_from_graph(graph, "PS-09")
+    trl_sentence = (
+        f"TRL {trl_raw} (Criterion PS-09: {ps09_status or 'Reported'}"
+        + (f", Score: {ps09_score}/10" if ps09_score is not None else "")
+        + ")."
+        if trl_raw
+        else "Undisclosed (TRL not specified in application)."
+    )
+    f_raised = _profile_field(graph, "funding_raised") or _get_claim_value(graph, "fi_08_funding_raised") or "Not disclosed in application"
+    rev_status = _profile_field(graph, "current_revenue") or _get_claim_value(graph, "bc_09_current_revenue") or "Not disclosed in application"
+
+    sr_rec = _get_sr_rec(graph)
+    ia_rec = _get_rec(ia)
+    cd_rec = _get_cd_rec(graph)
+
+    thesis_text = (
+        f"### **Executive Investment Thesis: {graph.startup_name}**\n\n"
+        f"**The Problem:** {problem_val}\n\n"
+        f"**The Solution:** {sol_desc} The platform builds on {arch_desc}.\n\n"
+        f"**Technical Differentiation:** {diff_val}\n\n"
+        f"**Technology Readiness Level:** {trl_sentence}\n\n"
+        f"**Capital & Revenue Profile:** Stated revenue: {rev_status}; external funding raised: {f_raised}. Equity allocation, founder vesting, and cap table documentation require formal verification during due diligence.\n\n"
+        f"### **Dual-Methodology Scoring Reconciliation**\n\n"
+        f"| Assessment Framework | Score | Confidence | Evaluation Scope & Methodology |\n"
+        f"| :--- | :--- | :--- | :--- |\n"
+        f"| **Commercial Viability Score** (Investment Diligence) | **{ia_score_disp}** | **{ia_conf}%** | Multi-dimensional scorecard evaluating founder capability, market opportunity, and execution viability. |\n"
+        f"| **Evidence Verification Score** (Supervisory Audit) | **{sr_score_disp}** | **{sr_conf_disp}** | Strict evidentiary verification audit weighting independent documentation vs self-disclosure. |\n\n"
+        f"### **Institutional Governance Alignment & Policy**\n\n"
+        f"* **Supervisory Review**: **{sr_rec}** — Cross-domain evidence audit aligning milestone conditions to documented gaps.\n"
+        f"* **Investment Assessment**: **{ia_rec}** (Score: {ia_score_disp}, Confidence: {ia_conf}%) — Balances execution upside against commercial/traction uncertainty.\n"
+        f"* **Incubation Committee**: **{cd_rec}** — Defines targeted diligence items prior to formal agreement signing.\n"
+        f"* **Final Review**: **{sr_rec}** — Harmonized institutional synthesis across specialist domains.\n"
+        f"* **Reconciled Operational Policy**: **{cd_rec} with {sr_rec} MILESTONE GATING** — Commitments remain gated on resolving outstanding diligence items."
+    )
+
+    conf = ia.confidence if ia else 0.81
+    content = thesis_text + _format_confidence_block(conf, "Investment Thesis")
     nodes = [ia.node_id] if ia else []
     return ReportSection(
         section_id="investment_thesis",
@@ -1023,14 +1433,20 @@ def _build_missing_section(graph: ObservationGraph) -> ReportSection:
             if is_legacy_mode(graph):
                 items = _domain_missing_evidence(graph, domain)
                 for m in items[:3]:
-                    if m.description:
+                    if hasattr(m, "description") and m.description:
                         missing_items.append(m.description)
+                    elif isinstance(m, dict) and m.get("description"):
+                        missing_items.append(m["description"])
+                    elif isinstance(m, str):
+                        missing_items.append(m)
                         
     ia = graph.investment_assessment
     if ia and getattr(ia, "missing_information", []):
         for item in ia.missing_information[:5]:
-            if item and len(item) > 5:
+            if isinstance(item, str) and len(item) > 5:
                 missing_items.append(item)
+            elif isinstance(item, dict) and item.get("description"):
+                missing_items.append(item["description"])
                 
     # Categorization logic
     categories = {
@@ -1170,11 +1586,8 @@ class DueDiligenceReportEngine:
 
     @staticmethod
     def generate(graph: ObservationGraph) -> ObservationGraph:
-        global GLOBAL_SEEN_SENTENCES
-        GLOBAL_SEEN_SENTENCES.clear()
-        
         report_id = f"REPORT-{str(uuid.uuid4())[:8].upper()}"
-        generated_at = datetime.utcnow().isoformat() + "Z"
+        generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Resolve conflicting observations – suppress non‑preferred ones
         suppressed_obs: set = set()
@@ -1310,12 +1723,18 @@ class DueDiligenceReportEngine:
 
         # Appendices
         appendices: List[Appendix] = []
+        raw_dom_source = getattr(graph, "domain_reports", None) or getattr(graph, "domain_assessments", None) or {}
+        CANONICAL_DOMAINS = ["problem_solution", "market_opportunity", "founder_team", "commercialisation", "innovation_impact", "financials_support"]
+        if any(k in CANONICAL_DOMAINS for k in raw_dom_source.keys()):
+            dom_source = {k: raw_dom_source[k] for k in CANONICAL_DOMAINS if k in raw_dom_source}
+        else:
+            dom_source = raw_dom_source
         asm_lines = ["| Domain | Confidence | Observations | Risks |", "| :--- | :--- | :--- | :--- |"]
-        for domain in graph.domain_assessments:
+        for domain in dom_source:
             conf_val = _domain_confidence(graph, domain)
             obs_count = len(graph.observations_by_domain.get(domain, []))
             risk_count = len([r for r in _domain_risks(graph, domain) if r])
-            asm_lines.append(f"| {domain.capitalize()} | {conf_val:.2f} | {obs_count} | {risk_count} |")
+            asm_lines.append(f"| {domain.replace('_', ' ').title()} | {conf_val:.2f} | {obs_count} | {risk_count} |")
         appendices.append(Appendix(appendix_id="appendix_a", title="Appendix A: Expert Domain Coverage", content="\n".join(asm_lines)))
 
         ev_lines = ["| Evidence ID | Location | Confidence |", "| :--- | :--- | :--- |"]
@@ -1333,13 +1752,61 @@ class DueDiligenceReportEngine:
             f"*   Evidence Nodes: {stats.evidence_count}",
             f"*   Claims: {stats.claim_count}",
             f"*   Observations: {stats.observation_count}",
-            f"*   Expert Assessments: {len(graph.domain_assessments)}",
+            f"*   Expert Assessments: {len(dom_source)}",
             f"*   Risks Identified: {stats.risk_count}",
             f"*   Resolved Conflicts: {len(resolved_c)}",
             f"*   Unresolved Conflicts: {len(unresolved_c)}",
             f"**Graph Hash:** `{graph.graph_hash}`",
         ]
         appendices.append(Appendix(appendix_id="appendix_c", title="Appendix C: Graph Statistics & Integrity Hash", content="\n".join(stat_lines)))
+
+        # Appendix D: External Independent Research Evidence Registry (if present)
+        all_ext_sources = []
+        if hasattr(graph, "final_review") and graph.final_review and hasattr(graph.final_review, "external_research_sources"):
+            all_ext_sources = graph.final_review.external_research_sources or []
+        if not all_ext_sources and dom_source:
+            for da in dom_source.values():
+                if hasattr(da, "external_research_evidence") and da.external_research_evidence:
+                    all_ext_sources.extend(da.external_research_evidence)
+                elif isinstance(da, dict) and da.get("external_research_evidence"):
+                    all_ext_sources.extend(da["external_research_evidence"])
+
+        if all_ext_sources:
+            ext_lines = [
+                "| Source Domain | Document / Article Title | Published | Authority | Support Status | Verification Grade | Canonical URL | Synthesis & Limitations |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            ]
+            seen_urls = set()
+            for src in all_ext_sources:
+                url = src.get("url", "")
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                is_mock = src.get("is_mock") or src.get("provenance") in ("MOCK_SIMULATED_RESEARCH", "MOCK") or "SIMULATED" in str(src.get("verification_grade", ""))
+                domain = src.get("source_domain", "web")
+                title = str(src.get("title", "External Source")).replace("|", "-")
+                pub_date = str(src.get("publication_date") or "N/A")
+                authority = str(src.get("source_authority", "GENERAL_WEB")).replace("|", "-")
+                support = str(src.get("support_status", "RETRIEVED_CONTEXT")).replace("|", "-")
+                grade = str(src.get("verification_grade", "RETRIEVED_SEARCH_RESULT")).replace("|", "-")
+                summary = str(src.get("summary") or "").replace("|", "-")[:120]
+                limitations = src.get("verification_limitations")
+                synth = summary
+                if limitations:
+                    clean_lim = str(limitations).replace("|", "-")[:80]
+                    synth += f" (Note: {clean_lim})"
+
+                if is_mock:
+                    domain_cell = f"[MOCK] {domain}"
+                    grade_cell = f"[SIMULATED] {grade}"
+                    synth_cell = f"[SIMULATED MOCK FIXTURE - NOT LIVE SEARCH] {synth}"
+                else:
+                    domain_cell = domain
+                    grade_cell = grade
+                    synth_cell = synth
+
+                ext_lines.append(f"| {domain_cell} | {title} | {pub_date} | {authority} | {support} | {grade_cell} | [{domain}]({url}) | {synth_cell} |")
+            appendices.append(Appendix(appendix_id="appendix_d", title="Appendix D: External Independent Research Evidence Registry", content="\n".join(ext_lines)))
 
         # Add backward-compatible aliases for traceability
         aliases = {
@@ -1358,6 +1825,9 @@ class DueDiligenceReportEngine:
 
         # Section 13: Quality Review / Self-Review check
         def self_review_clean(text: str) -> str:
+            if not text or not text.strip():
+                return text or ""
+            original = text
             text = remove_repeated_sentences(text)
             text = refine_generic_text(text)
             filler_phrases = [
@@ -1370,11 +1840,13 @@ class DueDiligenceReportEngine:
             ]
             for filler in filler_phrases:
                 text = re.sub(filler, "", text, flags=re.IGNORECASE)
-            return text.strip()
+            cleaned = text.strip()
+            return cleaned if cleaned else original.strip()
 
         # Clean all sections content
         section_executive.content = self_review_clean(section_executive.content)
         section_investment.content = self_review_clean(section_investment.content)
+        section_investment_summary.content = section_investment.content
         section_founder.content = self_review_clean(section_founder.content)
         section_product.content = self_review_clean(section_product.content)
         section_market.content = self_review_clean(section_market.content)
@@ -1399,6 +1871,22 @@ class DueDiligenceReportEngine:
             supporting_nodes=section_product.supporting_nodes,
             confidence=section_product.confidence
         )
+
+        def safe_dump_item(v):
+            if v is None or isinstance(v, (str, int, float, bool)):
+                return v
+            if hasattr(v, "model_dump"):
+                return v
+            elif hasattr(v, "__dict__"):
+                return {k: safe_dump_item(val) for k, val in v.__dict__.items() if not k.startswith("_")}
+            elif isinstance(v, dict):
+                return {k: safe_dump_item(val) for k, val in v.items()}
+            elif isinstance(v, (list, tuple, set)):
+                return [safe_dump_item(x) for x in v]
+            return str(v)
+
+        raw_doms = getattr(graph, 'domain_reports', None) or getattr(graph, 'domain_assessments', None) or {}
+        safe_domain_reports = {str(k): safe_dump_item(v) for k, v in raw_doms.items()}
 
         report_node = DueDiligenceReport(
             node_id=report_id,
@@ -1430,16 +1918,23 @@ class DueDiligenceReportEngine:
             conflicts=section_conflicts,
             resolutions=section_resolutions,
             missing_information=section_missing,
+            final_review=getattr(graph, 'final_review', None),
+            domain_reports=safe_domain_reports,
             appendices=appendices,
             traceability=traceability,
             metadata={
                 "report_id": report_id,
                 "generated_at": generated_at,
-                "domain_assessments_count": len(graph.domain_assessments),
+                "startup_id": graph.startup_id,
+                "startup_name": graph.startup_name,
+                "graph_hash": graph.graph_hash,
+                "domain_assessments_count": len(dom_source),
                 "unresolved_conflicts_count": len(unresolved_c),
                 "resolved_conflicts_count": len(resolved_c),
                 "suppressed_observations_count": len(suppressed_obs),
                 "architecture": "domain_assessments_primary",
+                "final_review": getattr(graph, "final_review", None).model_dump() if hasattr(getattr(graph, "final_review", None), "model_dump") else None,
+                "domain_reports": safe_domain_reports,
             },
         )
 

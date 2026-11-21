@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import Any
 from sqlalchemy.orm import Session
@@ -92,7 +92,7 @@ def merge_extractions(extractions: list[DocumentExtraction]) -> DocumentExtracti
     first_ext = extractions[0]
     merged.metadata.document_id = first_ext.metadata.document_id
     merged.metadata.startup_id = first_ext.metadata.startup_id
-    merged.metadata.extraction_timestamp = first_ext.metadata.extraction_timestamp or datetime.utcnow().isoformat()
+    merged.metadata.extraction_timestamp = first_ext.metadata.extraction_timestamp or datetime.now(timezone.utc).isoformat()
 
     return merged
 
@@ -174,7 +174,7 @@ class AIExtractor:
                 # Fill in metadata for this chunk
                 res.data.metadata.document_id = str(document.id)
                 res.data.metadata.startup_id = str(document.startup_id)
-                res.data.metadata.extraction_timestamp = datetime.utcnow().isoformat()
+                res.data.metadata.extraction_timestamp = datetime.now(timezone.utc).isoformat()
                 
                 extractions.append(res.data)
 

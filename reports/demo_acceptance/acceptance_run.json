@@ -1,0 +1,27 @@
+{
+  "evaluation_id": "edb50f3e-99ed-40df-b4cd-672fb709db7e",
+  "application_id": "c503c87f-f9e2-4b7f-aa79-5c313899d5e8",
+  "application_ref": "TIDES-2026-4002C6",
+  "startup_id": "f460bfa1-bd5c-45e5-8fe7-6da725cc1896",
+  "pdf": "C:\\Users\\gajab\\Documents\\tides-ai-platform\\reports\\demo_acceptance\\acceptance_report.pdf",
+  "backend_calls": [
+    "POST /api/v1/auth/login",
+    "GET /api/v1/runtime-mode",
+    "GET /api/v1/applications-dashboard",
+    "POST /api/v1/applications",
+    "POST /api/v1/applications/c503c87f-f9e2-4b7f-aa79-5c313899d5e8/documents",
+    "POST /api/v1/applications/c503c87f-f9e2-4b7f-aa79-5c313899d5e8/documents",
+    "GET /api/v1/applications/c503c87f-f9e2-4b7f-aa79-5c313899d5e8",
+    "GET /api/v1/runtime-mode",
+    "POST /api/v1/applications/c503c87f-f9e2-4b7f-aa79-5c313899d5e8/evaluations",
+    "GET /api/v1/applications/c503c87f-f9e2-4b7f-aa79-5c313899d5e8",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e/results",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e/evidence",
+    "GET /api/v1/evaluation-runs/edb50f3e-99ed-40df-b4cd-672fb709db7e/report.pdf"
+  ]
+}

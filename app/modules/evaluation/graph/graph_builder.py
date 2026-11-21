@@ -71,7 +71,7 @@ class ObservationGraphBuilder:
                 node_id=ev_id,
                 node_type=NodeType.EVIDENCE,
                 evidence_id=ev_id,
-                excerpt=getattr(ev, "evidence_snippet", getattr(ev, "excerpt", "No snippet")),
+                excerpt=(getattr(ev, "evidence_snippet", None) or getattr(ev, "excerpt", None) or ""),
                 location=f"{getattr(ev, 'section_name', 'Unknown')} p.{getattr(ev, 'page_number', '1')}",
                 confidence=getattr(ev, "confidence_score", 1.0)
             )
@@ -221,10 +221,10 @@ class ObservationGraphBuilder:
                     node_id=risk_id,
                     node_type=NodeType.RISK,
                     risk_id=risk_id,
-                    category=risk_cat,
-                    description=risk.description,
+                    category=str(getattr(risk, "category", None) or getattr(asm, "domain", "general")),
+                    description=getattr(risk, "description", None) or "Unspecified risk",
                     confidence=getattr(risk, "confidence", 1.0),
-                    reasoning=getattr(risk, "reasoning", "")
+                    reasoning=getattr(risk, "reasoning", None) or getattr(risk, "mitigation", None) or ""
                 )
                 graph.risks[risk_id] = risk_node
 
@@ -289,8 +289,8 @@ class ObservationGraphBuilder:
                     node_id=qst_id,
                     node_type=NodeType.QUESTION,
                     question_id=qst_id,
-                    question=qst.question,
-                    purpose=qst.purpose
+                    question=getattr(qst, "question", str(qst)),
+                    purpose=getattr(qst, "purpose", None) or "Clarification"
                 )
                 graph.questions[qst_id] = qst_node
 

@@ -1,7 +1,7 @@
 import pytest
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from app.modules.evaluation.graph import (
     NodeType, GraphNode, DocumentNode, EvidenceNode, ClaimNode,
@@ -279,7 +279,7 @@ def test_invalid_correlation_type(base_graph):
         correlation_type="INVALID_TYPE",
         description="Bad correlation type.",
         confidence=0.8,
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     graph.correlations["bad-corr"] = bad_corr
     
@@ -303,7 +303,7 @@ def test_missing_observation(base_graph):
         correlation_type="CORROBORATES",
         description="Bad reference.",
         confidence=0.8,
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     graph.correlations["missing-obs-corr"] = bad_corr
     
@@ -326,7 +326,7 @@ def test_self_correlation(base_graph):
         correlation_type="CORROBORATES",
         description="Self correlation.",
         confidence=0.8,
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     graph.correlations["self-corr"] = self_corr
     

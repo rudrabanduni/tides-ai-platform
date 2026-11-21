@@ -1,6 +1,7 @@
 import uuid
 import hashlib
 import json
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.security.audit import security_audit_service
 
 class WorkflowEngine:
     """Core orchestration engine for workflow lifecycle operations."""
+    _transition_lock = threading.Lock()
 
     @staticmethod
     def _compute_hash(workflow_data: dict) -> str:
@@ -117,136 +119,137 @@ class WorkflowEngine:
         db: Optional[Session] = None
     ) -> Workflow:
         """Executes state transition in the lifecycle, auditing progress and checking rules."""
-        workflow = get_workflow(workflow_id)
-        if not workflow:
-            raise WorkflowValidationError(f"Workflow '{workflow_id}' does not exist.")
+        with WorkflowEngine._transition_lock:
+            workflow = get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowValidationError(f"Workflow '{workflow_id}' does not exist.")
 
-        if not state_machine:
-            state_machine = WorkflowStateMachine()
+            if not state_machine:
+                state_machine = WorkflowStateMachine()
 
-        from_state = workflow.current_state
+            from_state = workflow.current_state
 
-        # Validate transition rules
-        val_res = WorkflowValidator.validate_transition(
-            workflow=workflow,
-            to_state=to_state,
-            actor_role=role,
-            approval_metadata=metadata or {},
-            state_machine=state_machine,
-            db=db
-        )
+            # Validate transition rules
+            val_res = WorkflowValidator.validate_transition(
+                workflow=workflow,
+                to_state=to_state,
+                actor_role=role,
+                approval_metadata=metadata or {},
+                state_machine=state_machine,
+                db=db
+            )
 
-        if val_res["errors"]:
-            # Publish failed event
-            workflow_events.publish_workflow_transition_failed(
+            if val_res["errors"]:
+                # Publish failed event
+                workflow_events.publish_workflow_transition_failed(
+                    workflow_id=workflow_id,
+                    from_state=from_state,
+                    to_state=to_state,
+                    error="; ".join(val_res["errors"]),
+                    payload={"actor": actor, "role": role}
+                )
+                # Security audit logging failure
+                security_audit_service.log(
+                    actor=actor,
+                    action="workflow.transition",
+                    resource=f"workflow:{workflow_id}",
+                    status="failure",
+                    details={
+                        "from_state": from_state,
+                        "to_state": to_state,
+                        "reason": "; ".join(val_res["errors"])
+                    }
+                )
+                raise WorkflowValidationError(
+                    f"Transition from '{from_state}' to '{to_state}' failed validation checks.",
+                    errors=val_res["errors"]
+                )
+
+            # Publish started event
+            workflow_events.publish_workflow_transition_started(
                 workflow_id=workflow_id,
                 from_state=from_state,
                 to_state=to_state,
-                error="; ".join(val_res["errors"]),
                 payload={"actor": actor, "role": role}
             )
-            # Security audit logging failure
+
+            now = datetime.now(timezone.utc)
+            transition_id = f"TR-{str(uuid.uuid4())[:8].upper()}"
+
+            # Update workflow parameters
+            workflow.previous_state = from_state
+            workflow.current_state = to_state
+            workflow.last_modified_by = actor
+            workflow.updated_at = now
+        
+            # Merge metadata
+            if metadata:
+                workflow.metadata.update(metadata)
+
+            # Compute new workflow hash
+            workflow.workflow_hash = WorkflowEngine._compute_hash(workflow.model_dump())
+
+            # Construct transition detail
+            transition = WorkflowTransition(
+                transition_id=transition_id,
+                from_state=from_state,
+                to_state=to_state,
+                triggered_by=actor,
+                timestamp=now,
+                justification=justification,
+                evidence=evidence or [],
+                metadata=metadata or {}
+            )
+
+            # Construct history entry
+            audit_reference = f"audit:{transition_id}"
+            history_entry = WorkflowHistoryEntry(
+                transition_id=transition_id,
+                actor=actor,
+                role=role,
+                previous_state=from_state,
+                new_state=to_state,
+                timestamp=now,
+                reason=justification,
+                audit_reference=audit_reference
+            )
+
+            # Register changes in registries
+            register_workflow(workflow)
+            register_history_entry(workflow_id, history_entry)
+
+            # Log transition to audit service
             security_audit_service.log(
                 actor=actor,
                 action="workflow.transition",
                 resource=f"workflow:{workflow_id}",
-                status="failure",
+                status="success",
                 details={
+                    "transition_id": transition_id,
                     "from_state": from_state,
                     "to_state": to_state,
-                    "reason": "; ".join(val_res["errors"])
+                    "justification": justification,
+                    "audit_ref": audit_reference
                 }
             )
-            raise WorkflowValidationError(
-                f"Transition from '{from_state}' to '{to_state}' failed validation checks.",
-                errors=val_res["errors"]
+
+            # Publish completed events
+            workflow_events.publish_workflow_transition_completed(
+                workflow_id=workflow_id,
+                from_state=from_state,
+                to_state=to_state,
+                payload={"actor": actor, "role": role, "transition_id": transition_id}
             )
 
-        # Publish started event
-        workflow_events.publish_workflow_transition_started(
-            workflow_id=workflow_id,
-            from_state=from_state,
-            to_state=to_state,
-            payload={"actor": actor, "role": role}
-        )
+            # Terminal state specific event emissions
+            target_state_config = state_machine.get_state(to_state)
+            if target_state_config and target_state_config.terminal:
+                if to_state == "Archived":
+                    workflow_events.publish_workflow_archived(workflow_id, {"archived_by": actor})
+                else:
+                    workflow_events.publish_workflow_completed(workflow_id, {"completed_by": actor})
 
-        now = datetime.now(timezone.utc)
-        transition_id = f"TR-{str(uuid.uuid4())[:8].upper()}"
-
-        # Update workflow parameters
-        workflow.previous_state = from_state
-        workflow.current_state = to_state
-        workflow.last_modified_by = actor
-        workflow.updated_at = now
-        
-        # Merge metadata
-        if metadata:
-            workflow.metadata.update(metadata)
-
-        # Compute new workflow hash
-        workflow.workflow_hash = WorkflowEngine._compute_hash(workflow.model_dump())
-
-        # Construct transition detail
-        transition = WorkflowTransition(
-            transition_id=transition_id,
-            from_state=from_state,
-            to_state=to_state,
-            triggered_by=actor,
-            timestamp=now,
-            justification=justification,
-            evidence=evidence or [],
-            metadata=metadata or {}
-        )
-
-        # Construct history entry
-        audit_reference = f"audit:{transition_id}"
-        history_entry = WorkflowHistoryEntry(
-            transition_id=transition_id,
-            actor=actor,
-            role=role,
-            previous_state=from_state,
-            new_state=to_state,
-            timestamp=now,
-            reason=justification,
-            audit_reference=audit_reference
-        )
-
-        # Register changes in registries
-        register_workflow(workflow)
-        register_history_entry(workflow_id, history_entry)
-
-        # Log transition to audit service
-        security_audit_service.log(
-            actor=actor,
-            action="workflow.transition",
-            resource=f"workflow:{workflow_id}",
-            status="success",
-            details={
-                "transition_id": transition_id,
-                "from_state": from_state,
-                "to_state": to_state,
-                "justification": justification,
-                "audit_ref": audit_reference
-            }
-        )
-
-        # Publish completed events
-        workflow_events.publish_workflow_transition_completed(
-            workflow_id=workflow_id,
-            from_state=from_state,
-            to_state=to_state,
-            payload={"actor": actor, "role": role, "transition_id": transition_id}
-        )
-
-        # Terminal state specific event emissions
-        target_state_config = state_machine.get_state(to_state)
-        if target_state_config and target_state_config.terminal:
-            if to_state == "Archived":
-                workflow_events.publish_workflow_archived(workflow_id, {"archived_by": actor})
-            else:
-                workflow_events.publish_workflow_completed(workflow_id, {"completed_by": actor})
-
-        return workflow
+            return workflow
 
     @staticmethod
     def rollback_workflow(
@@ -259,74 +262,75 @@ class WorkflowEngine:
         db: Optional[Session] = None
     ) -> Workflow:
         """Rollback the workflow current state to a previously visited state, maintaining history."""
-        workflow = get_workflow(workflow_id)
-        if not workflow:
-            raise WorkflowValidationError(f"Workflow '{workflow_id}' does not exist.")
+        with WorkflowEngine._transition_lock:
+            workflow = get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowValidationError(f"Workflow '{workflow_id}' does not exist.")
 
-        if not state_machine:
-            state_machine = WorkflowStateMachine()
+            if not state_machine:
+                state_machine = WorkflowStateMachine()
 
-        history = get_history(workflow_id)
+            history = get_history(workflow_id)
 
-        # Validate rollback target eligibility
-        val_res = WorkflowValidator.validate_rollback(workflow, target_state, history, state_machine)
-        if val_res["errors"]:
-            raise WorkflowValidationError(
-                f"Rollback to state '{target_state}' failed validation checks.",
-                errors=val_res["errors"]
+            # Validate rollback target eligibility
+            val_res = WorkflowValidator.validate_rollback(workflow, target_state, history, state_machine)
+            if val_res["errors"]:
+                raise WorkflowValidationError(
+                    f"Rollback to state '{target_state}' failed validation checks.",
+                    errors=val_res["errors"]
+                )
+
+            from_state = workflow.current_state
+            now = datetime.now(timezone.utc)
+            transition_id = f"RB-{str(uuid.uuid4())[:8].upper()}"
+
+            # Revert state values
+            workflow.previous_state = from_state
+            workflow.current_state = target_state
+            workflow.last_modified_by = actor
+            workflow.updated_at = now
+
+            # Re-compute workflow hash
+            workflow.workflow_hash = WorkflowEngine._compute_hash(workflow.model_dump())
+
+            # Construct rollback history entry
+            audit_reference = f"audit:{transition_id}"
+            history_entry = WorkflowHistoryEntry(
+                transition_id=transition_id,
+                actor=actor,
+                role=role,
+                previous_state=from_state,
+                new_state=target_state,
+                timestamp=now,
+                reason=f"ROLLBACK: {reason}",
+                audit_reference=audit_reference
             )
 
-        from_state = workflow.current_state
-        now = datetime.now(timezone.utc)
-        transition_id = f"RB-{str(uuid.uuid4())[:8].upper()}"
+            # Persist reverted changes
+            register_workflow(workflow)
+            register_history_entry(workflow_id, history_entry)
 
-        # Revert state values
-        workflow.previous_state = from_state
-        workflow.current_state = target_state
-        workflow.last_modified_by = actor
-        workflow.updated_at = now
+            # Log rollback to audit service
+            security_audit_service.log(
+                actor=actor,
+                action="workflow.rollback",
+                resource=f"workflow:{workflow_id}",
+                status="success",
+                details={
+                    "transition_id": transition_id,
+                    "from_state": from_state,
+                    "to_state": target_state,
+                    "reason": reason,
+                    "audit_ref": audit_reference
+                }
+            )
 
-        # Re-compute workflow hash
-        workflow.workflow_hash = WorkflowEngine._compute_hash(workflow.model_dump())
+            # Publish rolled back event
+            workflow_events.publish_workflow_rolled_back(
+                workflow_id=workflow_id,
+                from_state=from_state,
+                to_state=target_state,
+                payload={"actor": actor, "role": role, "reason": reason}
+            )
 
-        # Construct rollback history entry
-        audit_reference = f"audit:{transition_id}"
-        history_entry = WorkflowHistoryEntry(
-            transition_id=transition_id,
-            actor=actor,
-            role=role,
-            previous_state=from_state,
-            new_state=target_state,
-            timestamp=now,
-            reason=f"ROLLBACK: {reason}",
-            audit_reference=audit_reference
-        )
-
-        # Persist reverted changes
-        register_workflow(workflow)
-        register_history_entry(workflow_id, history_entry)
-
-        # Log rollback to audit service
-        security_audit_service.log(
-            actor=actor,
-            action="workflow.rollback",
-            resource=f"workflow:{workflow_id}",
-            status="success",
-            details={
-                "transition_id": transition_id,
-                "from_state": from_state,
-                "to_state": target_state,
-                "reason": reason,
-                "audit_ref": audit_reference
-            }
-        )
-
-        # Publish rolled back event
-        workflow_events.publish_workflow_rolled_back(
-            workflow_id=workflow_id,
-            from_state=from_state,
-            to_state=target_state,
-            payload={"actor": actor, "role": role, "reason": reason}
-        )
-
-        return workflow
+            return workflow

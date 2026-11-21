@@ -7,8 +7,12 @@ import { ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [email, setEmail] = useState('analyst@tides.ai');
-  const [password, setPassword] = useState('password');
+  // Demo hints exist only in local demonstration builds (NEXT_PUBLIC_DEMO_MODE=true) and never
+  // contain a password: the demo password lives in the gitignored demo environment file.
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  const demoEmail = process.env.NEXT_PUBLIC_DEMO_LOGIN_EMAIL || '';
+  const [email, setEmail] = useState(demoMode ? demoEmail : '');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -44,8 +48,8 @@ export default function LoginPage() {
           <div className="bg-blue-600/10 p-3 rounded-2xl text-blue-400 mb-4 border border-blue-500/20">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-100">Welcome to TIDES</h2>
-          <p className="text-slate-400 text-xs mt-2">Venture Intelligence & Decision Engine</p>
+          <h2 className="text-2xl font-bold text-slate-100">TIDES-AI</h2>
+          <p className="text-slate-400 text-xs mt-2">Startup incubation due diligence · TIEDS, IIT Roorkee</p>
         </div>
 
         {error && (
@@ -78,11 +82,8 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input type="checkbox" defaultChecked className="rounded border-slate-800 bg-slate-900 text-blue-500 focus:ring-0" />
-              <span>Remember me</span>
-            </label>
-            <span className="hover:text-blue-400 cursor-pointer">Forgot password?</span>
+            <span>Session expires automatically</span>
+            <span className="text-slate-500">Contact your TIEDS administrator for access</span>
           </div>
 
           <button
@@ -98,9 +99,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-8 text-center text-xs text-slate-500">
-          Demo login: <span className="text-slate-400">analyst@tides.ai</span> / <span className="text-slate-400">password</span>
-        </div>
+        {demoMode && (
+          <div className="mt-8 text-center text-xs text-amber-300/80" data-testid="demo-login-hint">
+            Local offline demonstration. Demo analyst account: <span className="text-slate-300">{demoEmail}</span> — see docs/DEMO_GUIDE.md for the password.
+          </div>
+        )}
       </div>
     </div>
   );

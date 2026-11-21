@@ -173,7 +173,7 @@ def test_litellm_gateway_success(mock_completion) -> None:
 
     # Verify litellm.completion call parameters
     import json
-    schema_json = json.dumps(SampleAgentOutput.model_json_schema(), indent=2, ensure_ascii=False)
+    schema_json = json.dumps(SampleAgentOutput.model_json_schema(), separators=(",", ":"), ensure_ascii=False)
     expected_system = (
         "System instructions\n\n"
         "OUTPUT FORMAT:\n"

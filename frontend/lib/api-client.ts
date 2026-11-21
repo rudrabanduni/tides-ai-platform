@@ -28,30 +28,63 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+
+  const res = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
+    refresh_token: refreshToken,
+  });
+  const { access_token, refresh_token: rotatedRefreshToken, user } = res.data || {};
+  if (!access_token) {
+    throw new Error('Refresh response missing access_token');
+  }
+  localStorage.setItem('access_token', access_token);
+  if (rotatedRefreshToken) {
+    localStorage.setItem('refresh_token', rotatedRefreshToken);
+  }
+  if (user) {
+    localStorage.setItem('tides_user', JSON.stringify(user));
+  }
+  return access_token;
+}
+
 // Response interceptor to handle token expiration & refresh
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const requestUrl = String(originalRequest?.url || '');
+    const isAuthAttempt = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
+
+    if (
+      typeof window !== 'undefined' &&
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isAuthAttempt
+    ) {
       originalRequest._retry = true;
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const res = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
-            refresh_token: refreshToken,
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
           });
-          const { access_token } = res.data;
-          localStorage.setItem('access_token', access_token);
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        }
+        const newAccessToken = await refreshPromise;
+        if (newAccessToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return apiClient(originalRequest);
         }
-      } catch (refreshError) {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-        }
+      } catch {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('tides_user');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

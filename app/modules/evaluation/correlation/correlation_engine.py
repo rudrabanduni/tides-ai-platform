@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from app.modules.evaluation.graph.graph_models import ObservationGraph, Edge, NodeType
 from app.modules.evaluation.correlation.correlation_models import CorrelationNode
 
@@ -125,7 +125,7 @@ class CorrelationEngine:
                         correlation_type=corr_type,
                         description=description,
                         confidence=confidence,
-                        created_at=datetime.utcnow().isoformat() + "Z"
+                        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     )
                     graph.correlations[corr_id] = corr_node
 

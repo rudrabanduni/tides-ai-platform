@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
@@ -18,6 +18,6 @@ class ExplanationNode(BaseModel):
     summary: str = Field(..., description="Short summary of the explanation")
     confidence: float = Field(..., description="Confidence score between 0.0 and 1.0")
     reasoning: str = Field(..., description="Detailed reasoning text")
-    generated_at: datetime = Field(..., default_factory=datetime.utcnow, description="Timestamp of generation")
+    generated_at: datetime = Field(..., default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of generation")
     lineage: LineageTrace = Field(default_factory=LineageTrace, description="Full traceability lineage path")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional context metadata")

@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import Optional, Any, List, Dict
 
@@ -189,11 +189,16 @@ class CommitteeDecisionEngine:
                 if doc not in required_docs:
                     required_docs.append(doc)
 
-        # 8. Follow-up Questions
+        # 8. Follow-up Questions (deduplicated while preserving insertion order)
         follow_ups = []
         if graph.questions:
+            seen_questions: set[str] = set()
             for qnode in graph.questions.values():
-                follow_ups.append(qnode.question)
+                raw_q = (qnode.question or "").strip()
+                norm_q = " ".join(raw_q.lower().split())
+                if norm_q and norm_q not in seen_questions:
+                    seen_questions.add(norm_q)
+                    follow_ups.append(raw_q)
         else:
             # Fallback defaults
             if recommendation in (Recommendation.INCUBATE, Recommendation.INCUBATE_AFTER_DD):
@@ -231,7 +236,7 @@ class CommitteeDecisionEngine:
         decision_id = f"DEC-{graph.startup_id or graph.graph_id}"
         inv_id = inv_asm.assessment_id if inv_asm else "N/A"
         exec_id = exec_asm.assessment_id if exec_asm else "N/A"
-        generated_at = datetime.utcnow().isoformat() + "Z"
+        generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         port_hash = getattr(portfolio, "portfolio_hash", getattr(portfolio_entry, "portfolio_hash", "N/A"))
 
         decision = InvestmentCommitteeDecision(
@@ -453,7 +458,7 @@ def generate_committee_report(
             decision_id=f"DEC-{startup_id}",
             startup_id=startup_id,
             startup_name=graph.startup_name or "Unknown Startup",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             committee_version="1.0.0",
             overall_confidence=round(overall_confidence, 4),
             overall_reasoning=summary,

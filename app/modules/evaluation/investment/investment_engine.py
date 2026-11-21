@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType, Edge
 from app.modules.evaluation.graph.graph_queries import trace_observation, trace_risk
@@ -270,7 +270,7 @@ class InvestmentEngine:
             node_id=assessment_id,
             node_type=NodeType.INVESTMENT,
             assessment_id=assessment_id,
-            generated_at=datetime.utcnow().isoformat() + "Z",
+            generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             graph_version=graph.graph_version,
             recommendation=recommendation,
             confidence=overall_confidence,

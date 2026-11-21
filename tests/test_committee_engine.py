@@ -1,7 +1,7 @@
 import time
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.modules.evaluation.graph import (
@@ -28,7 +28,11 @@ def mock_datetime_utcnow(monkeypatch):
     class MockDatetime:
         @classmethod
         def utcnow(cls):
-            return datetime(2026, 6, 25, 12, 0, 0)
+            return datetime(2026, 6, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 6, 25, 12, 0, 0, tzinfo=tz or timezone.utc)
     monkeypatch.setattr("app.modules.evaluation.committee.committee_engine.datetime", MockDatetime)
 
 
@@ -552,7 +556,7 @@ def test_consensus_logic_corroborations_and_contradictions():
     conf = ConflictNode(
         node_id="conf-manual", node_type=NodeType.CONFLICT,
         conflict_id="conf-manual", description="Factual contradiction on paying clients count.",
-        conflict_type="FACTUAL", confidence=0.75, created_at=datetime.utcnow()
+        conflict_type="FACTUAL", confidence=0.75, created_at=datetime.now(timezone.utc)
     )
     g.conflicts["conf-manual"] = conf
     

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -8,7 +8,7 @@ class StartupVersion(BaseModel):
     startup_id: str = Field(..., description="Associated startup application ID")
     startup_name: str = Field(..., description="Name of the startup")
     version_number: int = Field(..., description="Sequential version number")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of version creation")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of version creation")
     created_by: str = Field(..., description="Actor ID who triggered the version creation")
     graph_hash: str = Field(..., description="Deterministic hash of the observation graph")
     workflow_id: str = Field(..., description="Associated workflow state machine identifier")
@@ -55,4 +55,4 @@ class DeltaReport(BaseModel):
     removed_items: List[DeltaItem] = Field(default_factory=list, description="Catalog of removed items")
     modified_items: List[DeltaItem] = Field(default_factory=list, description="Catalog of modified items")
     overall_change_confidence: float = Field(..., description="Weighted average change confidence")
-    generated_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of report generation")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of report generation")

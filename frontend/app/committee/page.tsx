@@ -5,17 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/auth-context';
 import { 
-  Users, 
-  CheckCircle2, 
-  HelpCircle, 
-  AlertCircle, 
   Scale, 
   FileText,
-  BadgeAlert,
-  ThumbsUp,
-  SlidersHorizontal
 } from 'lucide-react';
-import { CommitteeDecision } from '@/types';
+import { } from '@/types';
 
 export default function CommitteePage() {
   const { user } = useAuth();
@@ -144,36 +137,48 @@ export default function CommitteePage() {
           )}
         </div>
 
-        {/* Panel of Active Committee (Right) */}
+        {/* Panel of Live Committee Consensus Summary (Right) */}
         <div className="space-y-6">
           <div className="glass rounded-xl p-6 border border-slate-800/50 space-y-4">
             <h4 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-              <Users className="w-5 h-5 text-blue-400" />
-              <span>Incubation Board</span>
+              <Scale className="w-5 h-5 text-blue-400" />
+              <span>Governance Summary</span>
             </h4>
             <div className="divide-y divide-slate-900 text-xs">
               <div className="py-3 flex items-center justify-between">
-                <div>
-                  <h5 className="font-semibold text-slate-300">Dr. Sarah Jenkins</h5>
-                  <span className="text-[10px] text-slate-500">General Partner (DeepTech)</span>
-                </div>
-                <ThumbsUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-400">Total Dossiers</span>
+                <span className="font-bold text-slate-200">{decisions.length}</span>
               </div>
               <div className="py-3 flex items-center justify-between">
-                <div>
-                  <h5 className="font-semibold text-slate-300">Michael Chang</h5>
-                  <span className="text-[10px] text-slate-500">Managing Director</span>
-                </div>
-                <ThumbsUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-400">Recommended to Incubate</span>
+                <span className="font-bold text-emerald-400">{incubateCount}</span>
               </div>
               <div className="py-3 flex items-center justify-between">
-                <div>
-                  <h5 className="font-semibold text-slate-300">Amanda Ross</h5>
-                  <span className="text-[10px] text-slate-500">Principal Investment Manager</span>
-                </div>
-                <ThumbsUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-400">Needs Additional DD / Info</span>
+                <span className="font-bold text-amber-400">{pendingCount}</span>
+              </div>
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-slate-400">Deferred</span>
+                <span className="font-bold text-rose-400">{deferredCount}</span>
+              </div>
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-slate-400">Mean Decision Confidence</span>
+                <span className="font-bold text-blue-400">
+                  {decisions.length > 0
+                    ? `${((decisions.reduce((sum, d) => sum + (d.decision_confidence || 0), 0) / decisions.length) * 100).toFixed(0)}%`
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-slate-400">Total Flagged Blocking Risks</span>
+                <span className="font-bold text-slate-200">
+                  {decisions.reduce((sum, d) => sum + (d.blocking_risks?.length || 0), 0)}
+                </span>
               </div>
             </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+              Decisions above reflect persisted committee records. AI recommendations require authenticated human committee sign-off.
+            </p>
           </div>
         </div>
       </div>

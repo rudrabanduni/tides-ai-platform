@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Any
 from app.modules.evaluation.graph.graph_models import ObservationGraph, Edge, NodeType
 from app.modules.evaluation.conflict_resolution.conflict_models import ResolutionNode, ResolutionEdge
@@ -13,15 +13,15 @@ class ConflictResolutionEngine:
         # Helper to parse datetime strings/objects
         def parse_date(date_val) -> datetime:
             if isinstance(date_val, datetime):
-                return date_val
+                return date_val.astimezone(timezone.utc) if date_val.tzinfo else date_val.replace(tzinfo=timezone.utc)
             if isinstance(date_val, str):
                 try:
-                    if date_val.endswith("Z"):
-                        date_val = date_val[:-1]
-                    return datetime.fromisoformat(date_val)
+                    norm = date_val[:-1] + "+00:00" if date_val.endswith("Z") else date_val
+                    dt = datetime.fromisoformat(norm)
+                    return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
                 except Exception:
                     pass
-            return datetime.min
+            return datetime.min.replace(tzinfo=timezone.utc)
 
         # Helper to get assessments generating an observation
         def get_observation_assessments(obs_id: str) -> List[str]:
@@ -185,7 +185,7 @@ class ConflictResolutionEngine:
                 supporting_claims=supporting_claims,
                 supporting_evidence=supporting_evidence,
                 supporting_assessments=supporting_assessments,
-                created_at=datetime.utcnow().isoformat() + "Z"
+                created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             )
             graph.resolutions[res_id] = res_node
 
@@ -271,7 +271,7 @@ class ConflictResolutionEngine:
                     supporting_claims=supporting_claims,
                     supporting_evidence=supporting_evidence,
                     supporting_assessments=supporting_assessments,
-                    created_at=datetime.utcnow().isoformat() + "Z"
+                    created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 )
                 graph.resolutions[res_id] = res_node
 

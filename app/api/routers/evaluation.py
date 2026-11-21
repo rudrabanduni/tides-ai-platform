@@ -7,6 +7,7 @@ import json
 from app.db.session import get_db
 from app.api.responses import make_response
 from app.api.dependencies import get_evaluation_service, EvaluationService
+from app.modules.auth.dependencies import EvaluatorUser, ReadOnlyUser
 from app.modules.evaluation.graph.graph_serializer import to_json as graph_to_json
 from app.modules.ai.orchestrator.pipeline import coordinate_evaluation_pipeline
 
@@ -20,6 +21,7 @@ def evaluate_startup_post(
     request: Request,
     payload: EvaluateInput,
     background_tasks: BackgroundTasks,
+    current_user: EvaluatorUser,
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
     eval_service.evaluate_startup(payload.startup_id, background_tasks)
@@ -33,6 +35,7 @@ def evaluate_startup_post(
 def evaluate_startup_path(
     request: Request,
     background_tasks: BackgroundTasks,
+    current_user: EvaluatorUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -46,6 +49,7 @@ def evaluate_startup_path(
 @router.get("/evaluation/{startup_id}")
 def get_evaluation_result(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -62,11 +66,27 @@ def get_evaluation_result(
         "confidence": inv_asm.confidence if inv_asm else None,
         "active_risks_count": len(graph.risks),
         "unresolved_conflicts_count": graph.graph_stats.unresolved_conflicts,
-        "graph_hash": graph.graph_hash
+        "graph_hash": graph.graph_hash,
+        "evaluation_mode": getattr(graph, "evaluation_mode", None),
     }
     
     # Full graph deserialized to dict to return in 'data'
     graph_dict = json.loads(graph_to_json(graph))
+
+    sup_review = getattr(graph, "supervisory_review", None) or getattr(graph, "final_review", None)
+    if not sup_review and graph.report:
+        sup_review = getattr(graph.report, "final_review", None)
+    if sup_review:
+        sup_dict = sup_review.model_dump() if hasattr(sup_review, "model_dump") else (sup_review if isinstance(sup_review, dict) else getattr(sup_review, "__dict__", {}))
+        graph_dict["supervisory_review"] = sup_dict
+        graph_dict["final_review"] = sup_dict
+
+    dom_reports = getattr(graph, "domain_reports", None) or (getattr(graph.report, "domain_reports", None) if graph.report else None)
+    if dom_reports and isinstance(dom_reports, dict):
+        graph_dict["domain_reports"] = {
+            k: (v.model_dump() if hasattr(v, "model_dump") else (v if isinstance(v, dict) else getattr(v, "__dict__", {})))
+            for k, v in dom_reports.items()
+        }
     
     return make_response(
         request,
@@ -79,6 +99,7 @@ def get_evaluation_result(
 @router.post("/evaluate-startup", status_code=status.HTTP_201_CREATED)
 async def evaluate_startup_end_to_end(
     request: Request,
+    current_user: EvaluatorUser,
     startup_name: str = Form(...),
     sector: str = Form("SaaS"),
     stage: str = Form("Pre-Seed"),
@@ -90,7 +111,8 @@ async def evaluate_startup_end_to_end(
         startup_name=startup_name,
         sector=sector,
         stage=stage,
-        files=files
+        files=files,
+        actor_id=current_user.id,
     )
     return make_response(
         request,

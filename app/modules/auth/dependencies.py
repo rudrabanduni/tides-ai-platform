@@ -50,12 +50,33 @@ def require_roles(*allowed_roles: RoleName) -> Callable:
 
 AnyAuthenticatedUser = Annotated[User, Depends(get_current_user)]
 AdminUser = Annotated[User, Depends(require_roles(RoleName.ADMIN))]
-EvaluatorUser = Annotated[User, Depends(require_roles(RoleName.ADMIN, RoleName.EVALUATOR))]
+EvaluatorUser = Annotated[
+    User,
+    Depends(require_roles(RoleName.ADMIN, RoleName.INCUBATION_MANAGER, RoleName.EVALUATOR, RoleName.ANALYST)),
+]
 ReviewerUser = Annotated[
     User,
-    Depends(require_roles(RoleName.ADMIN, RoleName.EVALUATOR, RoleName.COMMITTEE_MEMBER)),
+    Depends(
+        require_roles(
+            RoleName.ADMIN,
+            RoleName.INCUBATION_MANAGER,
+            RoleName.EVALUATOR,
+            RoleName.REVIEWER,
+            RoleName.COMMITTEE_MEMBER,
+        )
+    ),
 ]
 ReadOnlyUser = Annotated[
     User,
-    Depends(require_roles(RoleName.ADMIN, RoleName.EVALUATOR, RoleName.COMMITTEE_MEMBER, RoleName.VIEWER)),
+    Depends(
+        require_roles(
+            RoleName.ADMIN,
+            RoleName.INCUBATION_MANAGER,
+            RoleName.EVALUATOR,
+            RoleName.REVIEWER,
+            RoleName.COMMITTEE_MEMBER,
+            RoleName.ANALYST,
+            RoleName.VIEWER,
+        )
+    ),
 ]

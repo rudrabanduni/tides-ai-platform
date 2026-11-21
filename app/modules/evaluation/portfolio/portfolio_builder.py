@@ -1,7 +1,7 @@
 import time
 import uuid
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType
@@ -85,7 +85,7 @@ class PortfolioBuilder:
 
         # 7. Create Portfolio object
         portfolio_id = f"PORT-{str(uuid.uuid4())[:8]}"
-        generated_at = datetime.utcnow().isoformat() + "Z"
+        generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         
         graph_hashes_used = [entry.graph_hash for entry in entries]
         

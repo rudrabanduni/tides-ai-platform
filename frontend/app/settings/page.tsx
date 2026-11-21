@@ -12,7 +12,6 @@ import {
   Check, 
   User, 
   Building,
-  ShieldCheck
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -22,49 +21,51 @@ export default function SettingsPage() {
   const [keyName, setKeyName] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [newGeneratedKey, setNewGeneratedKey] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  // Fetch keys (default to mock list on API error or if user is non-admin)
-  const { data: keys = [] } = useQuery({
+  const extractError = (err: any, fallback: string) => {
+    if (err?.response?.status === 403) {
+      return 'Admin role required to view or manage developer API keys.';
+    }
+    return err?.response?.data?.detail || err?.response?.data?.message || err?.message || fallback;
+  };
+
+  const {
+    data: keys = [],
+    isLoading: keysLoading,
+    isError: keysIsError,
+    error: keysError,
+  } = useQuery({
     queryKey: ['apiKeys'],
-    queryFn: () => apiService.getApiKeys().catch(() => [
-      { id: 'key-1', name: 'Intake Importer Script', prefix: 'td_live_***abc', created_at: '2026-06-25T12:00:00Z' },
-      { id: 'key-2', name: 'Zapier Webhook Integration', prefix: 'td_live_***xyz', created_at: '2026-06-26T14:30:00Z' }
-    ]),
+    queryFn: () => apiService.getApiKeys(),
     enabled: !!user,
+    retry: false,
   });
 
   const createMutation = useMutation({
     mutationFn: (payload: { name: string }) => apiService.createApiKey(payload),
     onSuccess: (data) => {
+      setApiError(null);
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
       setKeyName('');
       if (data && data.key) {
         setNewGeneratedKey(data.key);
       }
     },
-    onError: () => {
-      // Fallback local key generation if backend admin authorization fails
-      const mockKey = `td_live_mock_${Math.random().toString(36).substring(2, 15)}`;
-      setNewGeneratedKey(mockKey);
-      queryClient.setQueryData(['apiKeys'], (old: any) => [
-        ...(old || []),
-        { id: `key-${Date.now()}`, name: keyName || 'Generated Token', prefix: 'td_live_***mock', created_at: new Date().toISOString() }
-      ]);
-      setKeyName('');
-    }
+    onError: (err: any) => {
+      setApiError(extractError(err, 'Failed to generate API key.'));
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.deleteApiKey(id),
     onSuccess: () => {
+      setApiError(null);
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
     },
-    onError: (err, id) => {
-      // Local fallback removal
-      queryClient.setQueryData(['apiKeys'], (old: any) => 
-        (old || []).filter((k: any) => k.id !== id)
-      );
-    }
+    onError: (err: any) => {
+      setApiError(extractError(err, 'Failed to revoke API key.'));
+    },
   });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -177,15 +178,23 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {(apiError || keysIsError) && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg">
+                {apiError || extractError(keysError, 'Unable to load API keys.')}
+              </div>
+            )}
+
             {/* Keys List */}
             <div className="divide-y divide-slate-900">
-              {keys.length > 0 ? (
+              {keysLoading ? (
+                <div className="text-center py-6 text-slate-500 text-xs">Loading API keys...</div>
+              ) : keys.length > 0 ? (
                 keys.map((key: any) => (
                   <div key={key.id} className="py-4 flex items-center justify-between gap-4 text-xs">
                     <div className="space-y-1">
                       <h4 className="font-semibold text-slate-200">{key.name}</h4>
                       <div className="flex items-center space-x-2 text-slate-500 text-[10px]">
-                        <span className="font-mono">{key.prefix || 'td_live_***'}</span>
+                        <span className="font-mono">{key.key_prefix || key.prefix || 'td_live_***'}</span>
                         <span>•</span>
                         <span>Created {new Date(key.created_at).toLocaleDateString()}</span>
                       </div>

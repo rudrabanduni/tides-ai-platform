@@ -5,12 +5,14 @@ from typing import Optional, List
 from app.api.responses import make_response
 from app.api.dependencies import get_portfolio_service, PortfolioService
 from app.api.pagination import PaginationParams, paginate_list
+from app.modules.auth.dependencies import ReadOnlyUser
 
 router = APIRouter(tags=["Portfolio"])
 
 @router.get("/portfolio")
 def get_portfolio(
     request: Request,
+    current_user: ReadOnlyUser,
     category: Optional[str] = Query(None, description="Filter by sector/category"),
     recommendation: Optional[str] = Query(None, description="Filter by investment recommendation status"),
     min_score: Optional[float] = Query(None, description="Minimum investment score"),
@@ -48,6 +50,7 @@ def get_portfolio(
 @router.get("/portfolio/top")
 def get_top_startups(
     request: Request,
+    current_user: ReadOnlyUser,
     limit: int = Query(default=10, ge=1, le=100, description="Number of top startups to fetch"),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ):
@@ -58,6 +61,7 @@ def get_top_startups(
 @router.get("/portfolio/statistics")
 def get_portfolio_statistics(
     request: Request,
+    current_user: ReadOnlyUser,
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ):
     stats = portfolio_service.get_statistics()
@@ -69,6 +73,7 @@ def get_portfolio_statistics(
 @router.get("/portfolio/category/{category}")
 def get_by_category(
     request: Request,
+    current_user: ReadOnlyUser,
     category: str = Path(..., description="The sector category name"),
     pagination: PaginationParams = Depends(),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)

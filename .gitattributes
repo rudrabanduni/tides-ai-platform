@@ -1,0 +1,10 @@
+# Binary artefacts must never be line-ending converted (CRLF conversion corrupts PDF xref offsets).
+*.pdf binary
+*.exe binary
+*.db binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.xlsx binary
+*.docx binary
+*.pptx binary

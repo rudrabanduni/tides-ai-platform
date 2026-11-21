@@ -14,8 +14,11 @@ from app.modules.users.schemas import UserCreate, UserUpdate
 
 DEFAULT_ROLE_DESCRIPTIONS: dict[RoleName, str] = {
     RoleName.ADMIN: "Full platform administration access.",
+    RoleName.INCUBATION_MANAGER: "Can manage startup cohorts, evaluations, and operational workflows.",
     RoleName.EVALUATOR: "Can evaluate startups and manage scoring workflows.",
+    RoleName.REVIEWER: "Can review startups, upload documents, and record supervisory reviews.",
     RoleName.COMMITTEE_MEMBER: "Can review committee materials, notes, and overrides.",
+    RoleName.ANALYST: "Can analyze startup materials and run due-diligence evaluations.",
     RoleName.VIEWER: "Read-only access to platform records.",
 }
 

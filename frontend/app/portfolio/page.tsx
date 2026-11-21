@@ -7,10 +7,6 @@ import { useAuth } from '@/contexts/auth-context';
 import { 
   TrendingUp, 
   Award, 
-  ShieldAlert, 
-  Compass,
-  ArrowRight,
-  SlidersHorizontal,
   ChevronDown
 } from 'lucide-react';
 import {
@@ -32,30 +28,53 @@ export default function PortfolioPage() {
     enabled: !!user,
   });
 
+  const { data: portfolioStats } = useQuery({
+    queryKey: ['portfolioStats'],
+    queryFn: () => apiService.getPortfolioStats(),
+    enabled: !!user,
+  });
+
   if (!user) return null;
 
   const entries = portfolio?.entries || [];
-  const stats = portfolio?.statistics || {
-    total_startups: entries.length || 6,
-    average_score: 74.5,
-    highest_score: 85.0,
-    lowest_score: 62.0,
+  const normalizeScore = (rawValue: number | undefined | null): number => {
+    const num = Number(rawValue ?? 0);
+    return num > 0 && num <= 1 ? num * 100 : num;
+  };
+  const scores = entries.map((e) => normalizeScore(e.overall_score ?? e.investment_score));
+  const computedStats = {
+    total_startups: entries.length,
+    average_score: scores.length > 0 ? scores.reduce((sum, val) => sum + val, 0) / scores.length : 0,
+    highest_score: scores.length > 0 ? Math.max(...scores) : 0,
+    lowest_score: scores.length > 0 ? Math.min(...scores) : 0,
+  };
+  const rawStats = portfolio?.statistics || (typeof portfolioStats?.average_score === 'number' ? portfolioStats : null);
+  const stats = {
+    total_startups: rawStats?.total_startups ?? computedStats.total_startups,
+    average_score: Number(rawStats?.average_score ?? computedStats.average_score),
+    highest_score: Number(rawStats?.highest_score ?? computedStats.highest_score),
+    lowest_score: Number(rawStats?.lowest_score ?? computedStats.lowest_score),
   };
 
-  const filteredEntries = sectorFilter 
-    ? entries.filter(e => e.category.toLowerCase() === sectorFilter.toLowerCase())
+  const filteredEntries = sectorFilter
+    ? entries.filter((e) => (e.category || e.sector || '').toLowerCase() === sectorFilter.toLowerCase())
     : entries;
 
-  // Sorting: highest score first (rank order)
-  const sortedEntries = [...filteredEntries].sort((a, b) => a.rank - b.rank);
+  // Sorting: rank order when assigned, otherwise highest score first
+  const sortedEntries = [...filteredEntries].sort((a, b) => {
+    if (typeof a.rank === 'number' && typeof b.rank === 'number') {
+      return a.rank - b.rank;
+    }
+    return normalizeScore(b.overall_score ?? b.investment_score) - normalizeScore(a.overall_score ?? a.investment_score);
+  });
 
   // Chart data mapping
-  const chartData = sortedEntries.map(e => ({
+  const chartData = sortedEntries.map((e) => ({
     name: e.startup_name,
-    score: (e.overall_score * (e.overall_score <= 1 ? 100 : 1)),
+    score: normalizeScore(e.overall_score ?? e.investment_score),
   }));
 
-  const sectorsList = Array.from(new Set(entries.map(e => e.category))).filter(Boolean);
+  const sectorsList = Array.from(new Set(entries.map((e) => e.category || e.sector || ''))).filter(Boolean);
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -138,14 +157,16 @@ export default function PortfolioPage() {
                           {entry.rank === 1 ? (
                             <Award className="w-4 h-4 text-amber-500 inline-block mr-1" />
                           ) : null}
-                          <span>#{entry.rank}</span>
+                          <span>#{entry.rank ?? '—'}</span>
                         </td>
                         <td className="py-4 px-6 font-semibold text-slate-100">{entry.startup_name}</td>
-                        <td className="py-4 px-6">{entry.category}</td>
+                        <td className="py-4 px-6">{entry.category || entry.sector || 'Uncategorized'}</td>
                         <td className="py-4 px-6 font-bold text-blue-400">
-                          {(entry.overall_score * (entry.overall_score <= 1 ? 100 : 1)).toFixed(0)}
+                          {normalizeScore(entry.overall_score ?? entry.investment_score).toFixed(0)}
                         </td>
-                        <td className="py-4 px-6">{(entry.graph_confidence || 0.8).toFixed(2)}</td>
+                        <td className="py-4 px-6">
+                          {typeof entry.graph_confidence === 'number' ? entry.graph_confidence.toFixed(2) : 'N/A'}
+                        </td>
                         <td className="py-4 px-6 text-right font-medium text-rose-500">
                           {entry.active_risk_count || 0}
                         </td>

@@ -11,9 +11,7 @@ import {
   Trash2, 
   Edit3, 
   Play, 
-  FileText,
   X,
-  SlidersHorizontal,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -46,6 +44,7 @@ export default function StartupsPage() {
   
   // Pagination
   const [page, setPage] = useState(1);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const itemsPerPage = 8;
 
   // React Query Fetch List
@@ -55,33 +54,42 @@ export default function StartupsPage() {
     enabled: !!user,
   });
 
+  const getMutationErr = (err: any, fallback: string) =>
+    err?.response?.data?.detail || err?.response?.data?.message || err?.message || fallback;
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: (payload: Partial<Startup>) => apiService.createStartup(payload),
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['startups'] });
       setIsAddOpen(false);
       resetForm();
-    }
+    },
+    onError: (err: any) => setMutationError(getMutationErr(err, 'Failed to create startup.')),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<Startup> }) => 
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<Startup> }) =>
       apiService.updateStartup(id, payload),
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['startups'] });
       setIsEditOpen(false);
       resetForm();
-    }
+    },
+    onError: (err: any) => setMutationError(getMutationErr(err, 'Failed to update startup.')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.deleteStartup(id),
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['startups'] });
       setIsDeleteOpen(false);
       setSelectedStartup(null);
-    }
+    },
+    onError: (err: any) => setMutationError(getMutationErr(err, 'Failed to delete startup.')),
   });
 
   const resetForm = () => {
@@ -150,9 +158,9 @@ export default function StartupsPage() {
 
   // Search and Filter Logic
   const filtered = startups.filter((s) => {
-    const matchesSearch = 
-      s.startup_name.toLowerCase().includes(search.toLowerCase()) ||
-      s.sector.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      (s.startup_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.sector || '').toLowerCase().includes(search.toLowerCase());
     const matchesStage = stageFilter ? s.stage === stageFilter : true;
     return matchesSearch && matchesStage;
   });
@@ -231,6 +239,12 @@ export default function StartupsPage() {
         </div>
       </div>
 
+      {mutationError && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg">
+          {mutationError}
+        </div>
+      )}
+
       {/* Table grid */}
       <div className="glass rounded-xl border border-slate-800/50 overflow-hidden">
         <div className="overflow-x-auto">
@@ -268,13 +282,18 @@ export default function StartupsPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        startup.status === 'APPROVED' 
-                          ? 'bg-emerald-500/10 text-emerald-400' 
-                          : 'bg-amber-500/10 text-amber-400'
-                      }`}>
-                        {startup.status || 'INGESTED'}
-                      </span>
+                      {(() => {
+                        const startupStatus = startup.current_status || startup.status || 'INGESTED';
+                        return (
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            startupStatus === 'APPROVED'
+                              ? 'bg-emerald-500/10 text-emerald-400'
+                              : 'bg-amber-500/10 text-amber-400'
+                          }`}>
+                            {startupStatus}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-4 px-6 text-right space-x-2">
                       <button

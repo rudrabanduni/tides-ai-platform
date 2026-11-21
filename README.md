@@ -1,172 +1,96 @@
-# TIDES AI Startup Evaluation Platform
+# TIDES-AI — Startup Incubation Due-Diligence Platform
 
-Phase 1 backend foundation for TIDES IIT Roorkee startup screening and incubation assessment.
+TIDES-AI evaluates startup incubation applications for the **Technology Incubation and
+Entrepreneurship Development Society (TIEDS), IIT Roorkee**. It scores each application against
+the LaunchIndex Startup Incubation Application rubric: **87 criteria**, made up of six cover/intake
+criteria (CM-01..CM-06) and 81 domain criteria. Six specialist domains assess the 81 criteria, a
+supervisory reviewer synthesises them, and the result is a validated institutional due-diligence
+report with PDF export.
 
-This implementation intentionally does **not** include AI agents, LiteLLM, Qdrant, n8n, or report generation yet. It focuses on the enterprise platform base: FastAPI, PostgreSQL, SQLAlchemy 2.x, Alembic, JWT auth, RBAC, startup intake, lifecycle tracking, canonical startup profiles, source attribution, evaluation schema, deterministic recommendation rules, audit logging, and committee support.
-
-## Tech Stack
-
-- FastAPI
-- PostgreSQL
-- SQLAlchemy 2.x
-- Alembic
-- Pydantic v2
-- JWT authentication
-- Docker and Docker Compose
-
-## Quick Start
-
-1. Copy the environment file:
-
-```bash
-cp .env.example .env
+```
+APPLICATION → DOCUMENT UPLOAD → EVALUATION → DOCUMENT EXTRACTION → CLAIMS & EVIDENCE
+  → SIX DOMAIN SPECIALISTS → SUPERVISORY REVIEW → 87-CRITERION VALIDATION → REPORT → PDF
 ```
 
-2. Update `JWT_SECRET_KEY` in `.env`.
+| Domain | Criteria |
+|---|---:|
+| Problem & Solution (PS) | 13 |
+| Market Opportunity (MO) | 10 |
+| Founder & Team (FT) | 13 |
+| Business Model & Commercialisation (BC) | 13 |
+| Innovation & Impact (II) | 11 |
+| Financials & Incubation Support (FI) | 21 |
+| Cover & intake metadata (CM) | 6 |
+| **Total** | **87** |
 
-3. Start the stack:
+## Two separate modes
 
-```bash
-docker compose up --build
-```
+| | Offline demonstration | Live provider evaluation |
+|---|---|---|
+| AI responses | `MockAIGateway`: deterministic, document-grounded, every rationale labelled `MOCK:` | Anthropic Claude via LiteLLM |
+| Database | `tides_demo.db` (resettable) | an explicitly configured database |
+| Cost | $0 | budget ceiling `AI_MAX_EVALUATION_BUDGET_USD` (default $0.35) |
+| Disclosure | `MOCK DEMONSTRATION — OFFLINE SYNTHETIC RESULTS — NOT A REAL AI EVALUATION` on every screen and PDF page | none |
+| From the web app | yes | refused unless `ALLOW_UI_LIVE_EVALUATIONS=true` |
 
-4. Open the API:
+The live mode has **not** been verified end to end with the v1.1 fixes. See
+[docs/REAL_PROVIDER_READINESS.md](docs/REAL_PROVIDER_READINESS.md).
 
-- OpenAPI docs: <http://localhost:8000/docs>
-- Health check: <http://localhost:8000/health>
+## Quick start (Windows, offline demonstration)
 
-5. Bootstrap the first admin:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/bootstrap-admin \
-  -H "Content-Type: application/json" \
-  -d '{"name":"TIDES Admin","email":"admin@tides.local","password":"ChangeMeStrong123!"}'
-```
-
-6. Log in:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@tides.local","password":"ChangeMeStrong123!"}'
-```
-
-Use the returned bearer token in `Authorization: Bearer <token>`.
-
-## Local Development Without Docker
-
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-
-On Windows PowerShell:
+Prerequisites already in the repository: `.venv\` (Python 3.14) and `.node\node-v22.11.0-win-x64\`.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+powershell -ExecutionPolicy Bypass -File scripts\start_demo.ps1 -Reset
 ```
 
-## Role-Based Access Control
+- Frontend: http://localhost:3000
+- Backend API: http://127.0.0.1:8000 · API docs: http://127.0.0.1:8000/docs
+- Login: `analyst@tides.ai`. Print the generated local password with
+  `.venv\Scripts\python.exe scripts\init_demo_db.py --show-credentials`.
+- Sample deck: `demo_fixtures\cleanpower_systems_pitch_deck.pdf` (fictional company).
+- Stop: `powershell -ExecutionPolicy Bypass -File scripts\stop_demo.ps1`
 
-Roles:
+The full walkthrough is in [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md).
 
-- `admin`
-- `evaluator`
-- `committee_member`
-- `viewer`
+## Repository map
 
-The first admin is created through `/api/v1/auth/bootstrap-admin`. After that, only admins can create or update users.
-
-## Core API Areas
-
-- Authentication: `/api/v1/auth`
-- Users: `/api/v1/users`
-- Startup intake and lifecycle: `/api/v1/startups`
-- Excel intake: `/api/v1/intake/upload-applications`
-- Startup Profile and versions: `/api/v1/startups/{startup_id}/profile`
-- Founders: `/api/v1/startups/{startup_id}/founders`
-- Company Profile: `/api/v1/startups/{startup_id}/company-profile`
-- Documents: `/api/v1/startups/{startup_id}/documents`
-- Document Sources: `/api/v1/startups/{startup_id}/document-sources`
-- Evaluation Rubrics: `/api/v1/evaluation-rubrics`
-- Evaluations: `/api/v1/startups/{startup_id}/evaluations`
-- Recommendation Rules: `/api/v1/admin/recommendation-rules`
-- Reviewer Comments: `/api/v1/evaluations/{evaluation_id}/comments`
-- Committee Notes: `/api/v1/evaluations/{evaluation_id}/committee-notes`
-- Score Overrides: `/api/v1/evaluation-scores/{score_id}/override`
-- Audit Logs: `/api/v1/audit-logs`
-
-## Startup Lifecycle Statuses
-
-- Draft
-- Submitted
-- Under Review
-- AI Evaluated
-- Committee Review
-- Recommended
-- Conditionally Recommended
-- Not Recommended
-- Incubated
-- Graduated
-- Archived
-
-Every status change creates records in both `startup_status_history` and `audit_logs`.
-
-## Excel Intake Pipeline
-
-Upload Accubate startup application exports as `.xlsx` files:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/intake/upload-applications \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@applications.xlsx"
-```
-
-Expected columns:
-
-- Startup Name
-- Founder Name
-- Founder Email
-- Problem Statement
-- Solution
-- Target Market
-- Startup Stage
-
-Valid rows create:
-
-- `StartupApplication`
-- `Founder`
-- `StartupProfile`
-- `StartupProfileVersion`
-- audit log entries tying the startup back to the source filename and row number
-
-Invalid rows are reported in the response and do not stop the import.
-
-## Recommendation Rules
-
-Recommendations are deterministic and threshold based. Seed defaults after logging in as admin:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/admin/recommendation-rules/defaults \
-  -H "Authorization: Bearer <token>"
-```
-
-Default bands:
-
-- 80-100: Recommended
-- 65-79.99: Committee Review
-- 50-64.99: Conditionally Recommended
-- 0-49.99: Not Recommended
+| Path | Purpose |
+|---|---|
+| `app/api/` | FastAPI app factory, routers, middleware |
+| `app/modules/applications/` | intake submissions, evaluation runs, results, PDF report, routes |
+| `app/modules/ai/orchestrator/pipeline.py` | evaluation pipeline (extraction → domains → supervisory → report) |
+| `app/modules/evaluation/domains/` | criterion registry, six domain specialists, batching |
+| `app/modules/evaluation/supervisory/` | fail-closed supervisory reviewer |
+| `app/services/ai/` | AI gateway (mock + LiteLLM), pricing, cost ledger |
+| `app/modules/documents/validation.py` | upload safety checks |
+| `frontend/` | Next.js 15 application |
+| `scripts/` | demo launcher, database initialisers, synthetic deck generator, live-pilot CLI |
+| `tests/` | backend pytest suite · `frontend/tests/` Vitest + Playwright |
+| `docs/` | architecture, operations, security, readiness, release report |
 
 ## Tests
 
-```bash
-pytest
+```powershell
+$env:AI_PROVIDER="mock"; .venv\Scripts\python.exe -m pytest tests -p no:warnings --junitxml=reports\test_results\backend_junit.xml
+cd frontend; $env:PATH="..\.node\node-v22.11.0-win-x64;$env:PATH"
+npx tsc --noEmit; npx eslint .; npx vitest run; npx next build
+npx playwright test --workers=1   # requires the running demo stack
 ```
+
+## Documentation
+
+- [CLAUDE.md](CLAUDE.md): engineering handbook and checkpoint
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)
+- [docs/OPERATOR_GUIDE.md](docs/OPERATOR_GUIDE.md)
+- [docs/SECURITY_AND_DATA_HANDLING.md](docs/SECURITY_AND_DATA_HANDLING.md)
+- [docs/REAL_PROVIDER_READINESS.md](docs/REAL_PROVIDER_READINESS.md)
+- [docs/FINAL_RELEASE_REPORT.md](docs/FINAL_RELEASE_REPORT.md)
+
+## Data protection
+
+`tides_ai.db` (protected snapshot) and `tides_dev.db` (PETREVOLT history) must never be modified.
+The application refuses to start against `tides_ai.db`, and the test suite fails if either file or
+the historical telemetry changes. Details are in
+[docs/SECURITY_AND_DATA_HANDLING.md](docs/SECURITY_AND_DATA_HANDLING.md).

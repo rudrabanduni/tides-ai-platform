@@ -1,7 +1,7 @@
 import json
 import time
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Any
 
 from app.modules.evaluation.graph import (
@@ -373,7 +373,7 @@ def test_large_graph_performance():
             supporting_claims=[],
             supporting_evidence=[],
             supporting_assessments=[],
-            created_at=datetime.utcnow().isoformat() + "Z"
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
         graph.resolutions[res_id] = res
         graph.resolutions_by_conflict[f"conf-{i}"] = [res_id]

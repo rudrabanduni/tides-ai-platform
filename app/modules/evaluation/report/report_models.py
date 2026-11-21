@@ -49,6 +49,8 @@ class DueDiligenceReport(GraphNode):
     conflicts: Optional[ReportSection] = None
     resolutions: Optional[ReportSection] = None
     missing_information: Optional[ReportSection] = None
+    final_review: Optional[Any] = None
+    domain_reports: Optional[Dict[str, Any]] = None
 
     appendices: List[Appendix] = Field(default_factory=list)
     traceability: Dict[str, Any] = Field(default_factory=dict)

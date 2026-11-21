@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.modules.auth.dependencies import EvaluatorUser, ReadOnlyUser
 from app.modules.startup_profiles.models import AIAssessmentRecord, StartupProfile, StartupProfileVersion
@@ -254,7 +255,7 @@ async def download_assessment_report(
     """
     startup = StartupService(db).get(startup_id)
     
-    graph_path = os.path.join("uploads", "graphs", f"{startup_id}.json")
+    graph_path = os.path.join(get_settings().upload_dir, "graphs", f"{startup_id}.json")
     if not os.path.exists(graph_path):
         records = AIAssessmentRecordRepository(db).list_for_startup(startup_id)
         if not records:

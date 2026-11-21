@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Python bytecode and caches
 __pycache__/
@@ -36,3 +37,19 @@ uploads/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local development databases
+tides_dev.db*
+
+private/
+
+# Offline demonstration data (regenerate with scripts/init_demo_db.py)
+tides_demo.db*
+uploads_demo/
+.env.demo
+frontend/.env.local
+logs/
+frontend/playwright-report/
+
+# Confidential due-diligence packages about real applicants (kept on disk, never committed)
+reports/hand_off/

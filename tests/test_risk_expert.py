@@ -1,7 +1,7 @@
 import pytest
 from uuid import uuid4
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.modules.intelligence.events import dispatcher
 from app.modules.intelligence.models import StartupIntelligenceProfile
@@ -153,7 +153,7 @@ def valid_risk_assessment() -> AgentAssessment:
         prompt_version="1.0.0",
         prompt_hash="dummy-hash",
         agent_version="1.0.0",
-        generated_at=datetime.utcnow()
+        generated_at=datetime.now(timezone.utc)
     )
 
 

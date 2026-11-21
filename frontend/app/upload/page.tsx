@@ -11,13 +11,26 @@ import {
   AlertCircle, 
   Loader2, 
   ArrowRight,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet,
+  File,
+  X,
+  ExternalLink,
+  Download
 } from 'lucide-react';
 
-interface StepperState {
-  step: number;
-  status: 'idle' | 'running' | 'completed' | 'failed';
-  error?: string;
+const ALLOWED_EXTENSIONS = [
+  // Pitch Decks & Documents
+  'pdf', 'pptx', 'ppt', 'docx', 'doc',
+  // Financial Spreadsheets & Tables
+  'xlsx', 'xls', 'csv'
+];
+
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
+interface UploadError {
+  fileName?: string;
+  message: string;
 }
 
 export default function UploadPage() {
@@ -27,28 +40,51 @@ export default function UploadPage() {
 
   // Form inputs
   const [startupName, setStartupName] = useState('');
-  const [sector, setSector] = useState('SaaS');
-  const [stage, setStage] = useState('Pre-Seed');
+  const [sector, setSector] = useState('DeepTech');
+  const [stage, setStage] = useState('MVP');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  // Stepper state
-  const [stepper, setStepper] = useState<StepperState>({
-    step: 0,
-    status: 'idle',
-  });
-
+  // Submission & Real Pipeline State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pipelineStage, setPipelineStage] = useState<'idle' | 'uploading' | 'evaluating' | 'completed' | 'failed'>('idle');
+  const [validationErrors, setValidationErrors] = useState<UploadError[]>([]);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<any>(null);
 
-  const stepsList = [
-    { label: 'File Upload & Ingestion', desc: 'Securely saving pitch deck on server' },
-    { label: 'Document Parsing & Extraction', desc: 'Parsing PDF/DOCX content to layout text' },
-    { label: 'Startup Profile Extraction', desc: 'Running AI schema extractor on parsed text' },
-    { label: 'Fact Base Generation', desc: 'Cataloging factual claims and verification evidence' },
-    { label: 'Multi-Agent Assessments', desc: 'Coordinating Founder, Product, & Market Experts' },
-    { label: 'Graph Build & Reports', desc: 'Resolving conflicts and compiling PDF bytes' }
-  ];
-
   if (!user) return null;
+
+  const validateFiles = (files: File[]): { valid: File[]; errors: UploadError[] } => {
+    const valid: File[] = [];
+    const errors: UploadError[] = [];
+
+    files.forEach((file) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        errors.push({
+          fileName: file.name,
+          message: `Unsupported file type (.${ext}). Supported: PDF, PPTX, PPT, DOCX, XLSX, XLS, CSV.`,
+        });
+        return;
+      }
+      if (file.size === 0) {
+        errors.push({
+          fileName: file.name,
+          message: 'File is empty (0 bytes) and cannot be evaluated.',
+        });
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        errors.push({
+          fileName: file.name,
+          message: `File exceeds 25 MB size limit (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
+        });
+        return;
+      }
+      valid.push(file);
+    });
+
+    return { valid, errors };
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -57,15 +93,19 @@ export default function UploadPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files) {
-      const files = Array.from(e.dataTransfer.files);
-      setSelectedFiles((prev) => [...prev, ...files]);
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      const { valid, errors } = validateFiles(droppedFiles);
+      setSelectedFiles((prev) => [...prev, ...valid]);
+      setValidationErrors((prev) => [...prev, ...errors]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setSelectedFiles((prev) => [...prev, ...files]);
+      const chosen = Array.from(e.target.files);
+      const { valid, errors } = validateFiles(chosen);
+      setSelectedFiles((prev) => [...prev, ...valid]);
+      setValidationErrors((prev) => [...prev, ...errors]);
     }
   };
 
@@ -73,21 +113,36 @@ export default function UploadPage() {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const getFileIcon = (fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />;
+    }
+    if (ext === 'pptx' || ext === 'ppt') {
+      return <FileText className="w-4 h-4 text-orange-400" />;
+    }
+    return <File className="w-4 h-4 text-blue-400" />;
+  };
+
   const triggerUpload = async () => {
-    if (!startupName.trim()) {
-      alert('Please enter a startup name.');
+    const trimmedName = startupName.trim();
+    if (!trimmedName) {
+      setPipelineError('Please provide a valid startup name.');
       return;
     }
     if (selectedFiles.length === 0) {
-      alert('Please upload at least one startup document.');
+      setPipelineError('Please upload at least one pitch deck or financial spreadsheet.');
       return;
     }
 
+    setPipelineError(null);
+    setValidationErrors([]);
     setResultData(null);
-    setStepper({ step: 1, status: 'running' });
+    setIsSubmitting(true);
+    setPipelineStage('uploading');
 
     const formData = new FormData();
-    formData.append('startup_name', startupName);
+    formData.append('startup_name', trimmedName);
     formData.append('sector', sector);
     formData.append('stage', stage);
     selectedFiles.forEach((file) => {
@@ -95,80 +150,76 @@ export default function UploadPage() {
     });
 
     try {
-      // Step 1: Uploading
-      await delay(1200);
-      setStepper({ step: 2, status: 'running' });
+      // In-flight status update
+      setPipelineStage('evaluating');
 
-      // Step 2: Parsing
-      await delay(1500);
-      setStepper({ step: 3, status: 'running' });
-
-      // Step 3: Profile Extraction
-      await delay(1800);
-      setStepper({ step: 4, status: 'running' });
-
-      // Step 4: Claim seeding
-      await delay(1500);
-      setStepper({ step: 5, status: 'running' });
-
-      // Step 5: Multi-agent assessments
-      // Trigger the actual backend E2E coordination request
+      // Trigger the real backend E2E evaluation request
       const data = await apiService.evaluateStartup(formData);
-      
-      setStepper({ step: 6, status: 'running' });
-      await delay(1200);
 
       setResultData(data);
-      setStepper({ step: 6, status: 'completed' });
+      if (data?.evaluation_status && !['COMPLETED', 'COMPLETED_SIMULATED'].includes(data.evaluation_status)) {
+        setPipelineStage('failed');
+        setPipelineError(
+          data?.error_message || data?.message || `Evaluation ended with status: ${data.evaluation_status}`
+        );
+      } else {
+        setPipelineStage('completed');
+      }
     } catch (err: any) {
-      setStepper({
-        step: stepper.step,
-        status: 'failed',
-        error: err.response?.data?.message || err.message || 'Evaluation pipeline failed.'
-      });
+      setPipelineStage('failed');
+      const backendMsg = err.response?.data?.message || err.response?.data?.detail || err.message;
+      setPipelineError(backendMsg || 'Evaluation pipeline execution failed. Please verify files and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   return (
-    <div className="p-8 space-y-8 max-w-4xl mx-auto">
+    <div className="p-8 space-y-8 max-w-5xl mx-auto">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">Evaluate Startup</h1>
-        <p className="text-slate-400 text-sm mt-1">Upload a pitch deck to execute the end-to-end evaluation pipeline</p>
+        <p className="text-slate-400 text-sm mt-1">
+          Intake application materials, run the 6 canonical specialist domains, and generate a unified supervisory due diligence report.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Form Inputs (Left) */}
         <div className="lg:col-span-2 space-y-6">
-          {stepper.status === 'idle' || stepper.status === 'failed' ? (
-            <div className="glass rounded-xl p-6 border border-slate-800/50 space-y-5">
+          {pipelineStage !== 'completed' ? (
+            <div className="glass rounded-xl p-6 border border-slate-800 space-y-5">
               <h3 className="font-bold text-lg text-slate-200 border-b border-slate-900 pb-3 flex items-center space-x-2">
                 <Sparkles className="w-5 h-5 text-blue-400" />
-                <span>Applicant Information</span>
+                <span>Application Intake Information</span>
               </h3>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Startup Name</label>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Startup Name *
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Acme AI Technologies"
+                    disabled={isSubmitting}
+                    placeholder="e.g. HyperDrive Robotics"
                     value={startupName}
                     onChange={(e) => setStartupName(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Sector</label>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Target Sector
+                    </label>
                     <select
-                      value={sector ?? ""}
+                      value={sector}
+                      disabled={isSubmitting}
                       onChange={(e) => setSector(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
                     >
                       <option value="DeepTech">DeepTech</option>
                       <option value="AI / ML">AI / ML</option>
@@ -193,16 +244,20 @@ export default function UploadPage() {
                       <option value="Other">Other</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Stage</label>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Maturity Stage
+                    </label>
                     <select
-                      value={stage ?? ""}
+                      value={stage}
+                      disabled={isSubmitting}
                       onChange={(e) => setStage(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
                     >
                       <option value="Idea">Idea</option>
-                      <option value="Prototype">Prototype</option>
-                      <option value="MVP">MVP</option>
+                      <option value="Prototype">Prototype (TRL 3-4)</option>
+                      <option value="MVP">MVP (TRL 5-6)</option>
                       <option value="Validation">Validation</option>
                       <option value="Early Revenue">Early Revenue</option>
                       <option value="Growth">Growth</option>
@@ -213,172 +268,286 @@ export default function UploadPage() {
 
                 {/* Dropzone */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Pitch Deck Documents</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Startup Documents & Spreadsheets *
+                    </label>
+                    <span className="text-[11px] text-slate-500">Max 25 MB per file</span>
+                  </div>
+
                   <div
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-xl p-8 text-center bg-slate-900/30 hover:bg-slate-900/50 transition-all cursor-pointer flex flex-col items-center justify-center space-y-3"
+                    onClick={() => !isSubmitting && fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 ${
+                      isSubmitting
+                        ? 'border-slate-800 bg-slate-950/40 opacity-50 cursor-not-allowed'
+                        : 'border-slate-800 hover:border-blue-500/50 bg-slate-900/30 hover:bg-slate-900/60'
+                    }`}
                   >
                     <UploadCloud className="w-10 h-10 text-slate-500" />
-                    <span className="text-sm font-semibold text-slate-300">Drag and drop pitch deck here</span>
-                    <span className="text-xs text-slate-500">Supports PDF, DOCX, PPTX (max 20MB)</span>
+                    <div>
+                      <span className="text-sm font-semibold text-slate-200 block">
+                        Drag and drop files here, or browse
+                      </span>
+                      <span className="text-xs text-slate-400 mt-1 block">
+                        Pitch Decks: PDF, PPTX, PPT, DOCX &bull; Financials: XLSX, XLS, CSV
+                      </span>
+                    </div>
                     <input
                       type="file"
                       ref={fileInputRef}
+                      disabled={isSubmitting}
                       onChange={handleFileChange}
                       multiple
+                      accept=".pdf,.pptx,.ppt,.docx,.doc,.xlsx,.xls,.csv"
                       className="hidden"
                     />
                   </div>
                 </div>
 
-                {/* Selected Files */}
+                {/* Validation Errors */}
+                {validationErrors.length > 0 && (
+                  <div className="space-y-1.5 p-3 rounded-lg bg-rose-950/30 border border-rose-900/40 text-xs text-rose-300">
+                    <span className="font-semibold block">File validation notices:</span>
+                    {validationErrors.map((err, i) => (
+                      <p key={i}>&bull; {err.fileName ? `${err.fileName}: ` : ''}{err.message}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Selected Files List */}
                 {selectedFiles.length > 0 && (
                   <div className="space-y-2 mt-4">
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Uploaded files</span>
-                    {selectedFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800/80">
-                        <div className="flex items-center space-x-3 text-slate-300 text-sm">
-                          <FileText className="w-4 h-4 text-blue-400" />
-                          <span className="truncate max-w-[200px]">{file.name}</span>
-                          <span className="text-xs text-slate-500">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFile(idx)}
-                          className="text-slate-500 hover:text-red-400 text-xs"
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Selected Files ({selectedFiles.length})
+                    </span>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {selectedFiles.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800/80 text-xs"
                         >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center space-x-3 text-slate-300 min-w-0">
+                            {getFileIcon(file.name)}
+                            <span className="truncate max-w-[280px] font-medium">{file.name}</span>
+                            <span className="text-[11px] text-slate-500 font-mono">
+                              ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                            </span>
+                          </div>
+                          {!isSubmitting && (
+                            <button
+                              type="button"
+                              onClick={() => removeFile(idx)}
+                              className="text-slate-500 hover:text-rose-400 p-1"
+                              title="Remove file"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {stepper.status === 'failed' && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-lg flex items-center space-x-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{stepper.error}</span>
+              {/* In-Flight Real Pipeline Feedback */}
+              {isSubmitting && (
+                <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-900/40 text-blue-300 space-y-2">
+                  <div className="flex items-center space-x-2 text-xs font-semibold">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                    <span>
+                      {pipelineStage === 'uploading'
+                        ? 'Uploading application documents to server...'
+                        : 'Orchestrating 6 canonical specialist domains and supervisory synthesis...'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Executing fact-base claim extraction, specialist analysis across all LaunchIndex criteria, and supervisory conflict auditing. Please do not close this window.
+                  </p>
+                </div>
+              )}
+
+              {/* Pipeline Error Banner */}
+              {pipelineError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs p-4 rounded-lg flex items-start space-x-2.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{pipelineError}</span>
                 </div>
               )}
 
               <button
                 type="button"
+                disabled={isSubmitting || selectedFiles.length === 0 || !startupName.trim()}
                 onClick={triggerUpload}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-3 font-semibold transition-colors shadow-lg shadow-blue-500/20 text-sm"
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg py-3 font-semibold transition-colors shadow-lg shadow-blue-500/10 text-sm flex items-center justify-center space-x-2"
               >
-                Start AI Analysis Pipeline
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Running Evaluation Pipeline...</span>
+                  </>
+                ) : (
+                  <span>Start AI Evaluation Pipeline</span>
+                )}
               </button>
             </div>
           ) : (
-            /* Running Stepper Progress */
-            <div className="glass rounded-xl p-8 border border-slate-800/50 space-y-8 flex flex-col justify-center">
-              <div className="text-center space-y-2">
-                <h3 className="font-extrabold text-xl text-slate-200">Processing Evaluation</h3>
-                <p className="text-slate-400 text-xs">The TIDES multi-agent orchestrator is evaluating startup profiles</p>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-blue-500 h-full transition-all duration-300 rounded-full" 
-                  style={{ width: `${(stepper.step / stepsList.length) * 100}%` }}
-                ></div>
-              </div>
-
-              <div className="space-y-6">
-                {stepsList.map((step, idx) => {
-                  const stepNum = idx + 1;
-                  const isCompleted = stepper.step > stepNum || (stepper.step === stepNum && stepper.status === 'completed');
-                  const isCurrent = stepper.step === stepNum && stepper.status === 'running';
-                  const isPending = stepper.step < stepNum;
-
-                  return (
-                    <div key={idx} className="flex items-start space-x-4">
-                      {isCompleted ? (
-                        <div className="p-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <CheckCircle2 className="w-5 h-5" />
-                        </div>
-                      ) : isCurrent ? (
-                        <div className="p-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        </div>
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-semibold text-slate-500">
-                          {stepNum}
-                        </div>
-                      )}
-                      <div>
-                        <h4 className={`text-sm font-semibold ${isPending ? 'text-slate-600' : 'text-slate-200'}`}>
-                          {step.label}
-                        </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{step.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {stepper.status === 'completed' && resultData && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm p-6 rounded-xl space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="font-semibold">Pipeline Complete!</span>
-                  </div>
-                  <p className="text-slate-400 text-xs">
-                    Startup evaluated successfully. Due diligence report ID: <span className="text-slate-200 font-semibold">{resultData.assessment_identifier}</span>.
+            /* Completed Pipeline State Card */
+            <div className="glass rounded-xl p-8 border border-emerald-500/30 bg-emerald-950/10 space-y-6">
+              <div className="flex items-start space-x-3">
+                <div className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mt-0.5">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold text-slate-100">Due Diligence Pipeline Complete!</h3>
+                  <p className="text-xs text-slate-400">
+                    All six specialist domain assessments and supervisory synthesis have been successfully generated.
                   </p>
-                  <div className="flex space-x-3 pt-2">
-                    <button
-                      onClick={() => router.push(`/reports/${resultData.assessment_identifier}`)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center space-x-2"
-                    >
-                      <span>Open Report</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Download PDF from base64 string
-                        const link = document.createElement('a');
-                        link.href = `data:application/pdf;base64,${resultData.pdf_base64}`;
-                        link.download = `Due_Diligence_Report_${resultData.assessment_identifier}.pdf`;
-                        link.click();
-                      }}
-                      className="px-4 py-2 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 rounded-lg text-xs font-semibold transition-colors"
-                    >
-                      Download PDF
-                    </button>
+                </div>
+              </div>
+
+              {/* Assessment IDs & Telemetry */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-slate-500">Evaluation Report Identifier:</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    {resultData?.assessment_identifier || 'DD-TIDES-AI'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-slate-500">Startup Evaluated:</span>
+                  <span className="font-semibold text-slate-200">{startupName}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-slate-500">Status:</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-emerald-400">COMPLETED</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                      MOCK DEMONSTRATION
+                    </span>
                   </div>
                 </div>
-              )}
+              </div>
+
+              {/* Direct Navigation Actions */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/reports/${resultData?.assessment_identifier}`)}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
+                >
+                  <span>Open Due Diligence Report</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push(`/evaluations/${resultData?.startup_id || resultData?.assessment_identifier}`)}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>View Knowledge Graph</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (resultData?.assessment_identifier) {
+                        const blob = await apiService.getReportPdf(resultData.assessment_identifier);
+                        if (blob.type === 'application/json') {
+                          const errText = await blob.text();
+                          const errJson = JSON.parse(errText);
+                          alert(errJson.message || 'PDF report is not available.');
+                          return;
+                        }
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `Due_Diligence_Report_${resultData.assessment_identifier}.pdf`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } else if (resultData?.pdf_base64) {
+                        const link = document.createElement('a');
+                        link.href = `data:application/pdf;base64,${resultData.pdf_base64}`;
+                        link.download = `Due_Diligence_Report_${resultData.assessment_identifier || 'evaluation'}.pdf`;
+                        link.click();
+                      }
+                    } catch (err: any) {
+                      alert(err.response?.data?.message || err.message || 'Failed to download PDF report.');
+                    }
+                  }}
+                  className="px-4 py-2.5 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </button>
+              </div>
+
+              <div className="border-t border-slate-900 pt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPipelineStage('idle');
+                    setResultData(null);
+                    setSelectedFiles([]);
+                    setStartupName('');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-300 underline"
+                >
+                  Evaluate Another Startup
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Informative Side Panel (Right) */}
+        {/* Right Info Panel */}
         <div className="space-y-6">
-          <div className="glass rounded-xl p-6 border border-slate-800/50 space-y-4">
-            <h4 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Evaluation Specs</h4>
-            <ul className="text-xs text-slate-400 space-y-3">
+          <div className="glass rounded-xl p-6 border border-slate-800 space-y-4">
+            <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">
+              Canonical Evaluation Framework
+            </h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Every document format is extracted into the canonical LaunchIndex criteria registry before evaluation:
+            </p>
+            <ul className="text-xs text-slate-400 space-y-2.5">
               <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span>The upload parses content layout structure cleanly from documents.</span>
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">1. Problem & Solution:</strong> Validates user pain, proposition, and Technology & TRL feasibility (PS-09 to PS-13).</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span>The analysis engine generates and links factual evidence verification records.</span>
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">2. Market Opportunity & Competition:</strong> Analyzes TAM/SAM/SOM, CAGR, and defensibility against incumbents.</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span>Experts evaluate founder experience, product-market fit, and technical risk.</span>
+                <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">3. Founder & Team Capability:</strong> Evaluates founder pedigrees, domain commitment, and hiring roadmap.</span>
               </li>
               <li className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                <span>Evaluation metrics flow directly into the final portfolio analytics and decision system.</span>
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">4. Business Model & Commercialisation:</strong> Scrutinizes pricing unit economics, sales channels, and customer traction.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="w-1.5 h-1.5 bg-rose-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">5. Innovation, IP & Impact:</strong> Investigates proprietary moats, patents, regulatory barriers, and SDG impact.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+                <span><strong className="text-slate-300">6. Financials & Incubation Support:</strong> Evaluates multi-year pro forma, runway, burn rate, and TIDES support needs.</span>
               </li>
             </ul>
+          </div>
+
+          <div className="glass rounded-xl p-6 border border-slate-800 space-y-3 bg-slate-950/40">
+            <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">
+              Evidence Attribution
+            </h4>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Every specialist finding maintains strict link traceability back to slide numbers and document quotes. Unsubstantiated claims are flagged for committee review.
+            </p>
           </div>
         </div>
       </div>

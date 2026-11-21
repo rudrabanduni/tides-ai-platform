@@ -82,6 +82,7 @@ class IntelligenceService:
             DocumentClassification.PATENT: DocumentType.COMPANY_DOCUMENT,
             DocumentClassification.RESEARCH_PAPER: DocumentType.OTHER,
             DocumentClassification.EXCEL_INTAKE: DocumentType.APPLICATION_FORM,
+            DocumentClassification.FOUNDER_RESUME: DocumentType.FOUNDER_RESUME,
             DocumentClassification.TEXT: DocumentType.OTHER,
             DocumentClassification.PDF: DocumentType.OTHER,
             DocumentClassification.DOCX: DocumentType.OTHER,
@@ -156,12 +157,22 @@ class IntelligenceService:
             parsed_result = ParserManager.parse_file(document.file_path, document.content_type)
 
             # 4. PARSED (Complete) Stage
-            document.parsed_text = parsed_result["normalized_text"]
+            from app.modules.intelligence.pii_sanitizer import sanitize_text
+            document.parsed_text = sanitize_text(parsed_result["normalized_text"])
             document.processing_status = DocumentProcessingStatus.PARSED
             self.db.add(document)
             self.db.flush()
 
-            # Save sidecar metadata
+            def _sanitize_nested(obj):
+                if isinstance(obj, str):
+                    return sanitize_text(obj)
+                if isinstance(obj, list):
+                    return [_sanitize_nested(item) for item in obj]
+                if isinstance(obj, dict):
+                    return {k: _sanitize_nested(v) for k, v in obj.items()}
+                return obj
+
+            # Save sidecar metadata (with PII-sanitized metadata and table cells)
             meta_path = document.file_path + ".meta.json"
             meta_data = {
                 "document_id": str(document.id),
@@ -171,15 +182,15 @@ class IntelligenceService:
                 "checksum": checksum,
                 "classification": classification.value,
                 "classification_confidence": 1.0,
-                "title": parsed_result["metadata"].get("title", ""),
-                "author": parsed_result["metadata"].get("author", ""),
+                "title": sanitize_text(str(parsed_result["metadata"].get("title", ""))),
+                "author": sanitize_text(str(parsed_result["metadata"].get("author", ""))),
                 "creation_date": parsed_result["metadata"].get("creation_date", ""),
                 "modification_date": parsed_result["metadata"].get("modification_date", ""),
                 "page_count": parsed_result["page_count"],
                 "word_count": parsed_result["word_count"],
                 "language": parsed_result["language"],
                 "images_count": parsed_result.get("images_count", 0),
-                "tables": parsed_result.get("tables", []),
+                "tables": _sanitize_nested(parsed_result.get("tables", [])),
             }
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta_data, f, ensure_ascii=False, indent=2)

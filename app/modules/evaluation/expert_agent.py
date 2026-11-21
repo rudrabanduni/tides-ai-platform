@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from app.services.ai.gateway import AIGateway, create_ai_gateway
 from app.services.ai.schemas import AICompletionRequest
@@ -151,7 +151,7 @@ class ExpertAgent(ABC):
         draft.prompt_version = prompt_data["prompt_version"]
         draft.prompt_hash = prompt_data["prompt_hash"]
         draft.agent_version = self.get_agent_version()
-        draft.generated_at = datetime.utcnow()
+        draft.generated_at = datetime.now(timezone.utc)
 
         # Validate Draft AgentAssessment using the read-only AssessmentValidator
         from app.modules.evaluation.validation.assessment_validator import AssessmentValidator

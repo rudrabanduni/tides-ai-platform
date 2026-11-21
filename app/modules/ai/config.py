@@ -14,7 +14,7 @@ class AISettings(BaseSettings):
     
     # Model names mapping
     ai_openai_model: str = Field(default="gpt-4o", validation_alias="AI_OPENAI_MODEL")
-    ai_anthropic_model: str = Field(default="claude-3-5-sonnet-20241022", validation_alias="AI_ANTHROPIC_MODEL")
+    ai_anthropic_model: str = Field(default="claude-sonnet-5-5", validation_alias="AI_ANTHROPIC_MODEL")
     ai_gemini_model: str = Field(default="gemini-1.5-pro", validation_alias="AI_GEMINI_MODEL")
     ai_local_model: str = Field(default="local-model", validation_alias="AI_LOCAL_MODEL")
     ai_ollama_model: str = Field(default="llama3", validation_alias="AI_OLLAMA_MODEL")

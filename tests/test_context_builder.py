@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from typing import Any
 
@@ -26,7 +26,7 @@ def create_mock_claim(field_key: str, value: Any, confidence: float, created_at:
             self.value_date = None
             self.confidence_score = confidence
             self.validation_status = "VALIDATED"
-            self.created_at = created_at or datetime.utcnow()
+            self.created_at = created_at or datetime.now(timezone.utc)
             self.reasoning = "Mock reasoning for test claim."
 
     return DummyClaim()
@@ -133,7 +133,7 @@ def test_context_builder_confidence_filtering() -> None:
 
 
 def test_context_builder_freshness_sorting() -> None:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     # claim_old has higher confidence but older timestamp
     claim_old = create_mock_claim("founder_names", "Alice", 0.9, created_at=now - timedelta(days=10))
     # claim_new has lower confidence but newer timestamp
