@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType, Edge
 from app.modules.evaluation.executive.executive_models import (
@@ -194,7 +194,7 @@ class ExecutiveEngine:
             node_id=assessment_id,
             node_type=NodeType.EXECUTIVE,
             assessment_id=assessment_id,
-            generated_at=datetime.utcnow().isoformat() + "Z",
+            generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             graph_version=graph.graph_version,
             summary=summary,
             key_observations=key_observations,

@@ -63,11 +63,11 @@ def get_metrics(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/status")
 def get_status(request: Request, db: Session = Depends(get_db)):
-    from datetime import datetime
+    from datetime import datetime, timezone
     db_status = check_database(db)
     data = {
         "status": "operational" if "error" not in db_status else "degraded",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "database": db_status
     }
     return make_response(request, data=data, message="System status retrieved successfully")

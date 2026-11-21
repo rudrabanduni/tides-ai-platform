@@ -6,12 +6,14 @@ from typing import Optional
 from app.api.responses import make_response
 from app.api.dependencies import get_committee_service, CommitteeService
 from app.api.pagination import PaginationParams, paginate_list
+from app.modules.auth.dependencies import ReadOnlyUser
 
 router = APIRouter(tags=["Committee"])
 
 @router.get("/committee")
 def get_all_decisions(
     request: Request,
+    current_user: ReadOnlyUser,
     recommendation: Optional[str] = Query(None, description="Filter by Recommendation enum"),
     priority: Optional[str] = Query(None, description="Filter by Investment Priority enum"),
     pagination: PaginationParams = Depends(),
@@ -32,6 +34,7 @@ def get_all_decisions(
 @router.get("/committee/incubate")
 def get_incubate_decisions(
     request: Request,
+    current_user: ReadOnlyUser,
     pagination: PaginationParams = Depends(),
     committee_service: CommitteeService = Depends(get_committee_service)
 ):
@@ -43,6 +46,7 @@ def get_incubate_decisions(
 @router.get("/committee/pending-dd")
 def get_pending_dd_decisions(
     request: Request,
+    current_user: ReadOnlyUser,
     pagination: PaginationParams = Depends(),
     committee_service: CommitteeService = Depends(get_committee_service)
 ):
@@ -54,6 +58,7 @@ def get_pending_dd_decisions(
 @router.get("/committee/deferred")
 def get_deferred_decisions(
     request: Request,
+    current_user: ReadOnlyUser,
     pagination: PaginationParams = Depends(),
     committee_service: CommitteeService = Depends(get_committee_service)
 ):
@@ -65,6 +70,7 @@ def get_deferred_decisions(
 @router.get("/committee/{startup_id}")
 def get_startup_decision(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     committee_service: CommitteeService = Depends(get_committee_service)
 ):

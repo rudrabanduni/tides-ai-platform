@@ -78,10 +78,11 @@ class JWTService:
     # Token decoding
     # ------------------------------------------------------------------
 
-    def decode_token(self, token: str) -> TokenClaims | None:
+    def decode_token(self, token: str, expected_type: str | None = None) -> TokenClaims | None:
         """Decode and validate a JWT, returning structured claims.
 
         Includes clock skew handling (leeway=30s) and blacklist validation.
+        Optionally enforces token ``type`` ("access" vs "refresh").
         """
         try:
             # Clock skew handling using leeway parameter
@@ -97,8 +98,12 @@ class JWTService:
         subject = raw.get("sub")
         role = raw.get("role", "viewer")
         jti = raw.get("jti", "")
+        token_type = str(raw.get("type", "access"))
         exp_raw = raw.get("exp")
         iat_raw = raw.get("iat")
+
+        if expected_type is not None and token_type != expected_type:
+            return None
 
         if not subject or not isinstance(subject, str):
             return None
@@ -129,11 +134,12 @@ class JWTService:
             jti=jti,
             exp=exp_dt,
             iat=iat_dt,
+            token_type=token_type,
         )
 
-    def decode_token_data(self, token: str) -> TokenData | None:
-        """Lightweight decode – returns TokenData for DI use."""
-        claims = self.decode_token(token)
+    def decode_token_data(self, token: str, expected_type: str | None = "access") -> TokenData | None:
+        """Lightweight decode – returns TokenData for DI use (defaults to access tokens)."""
+        claims = self.decode_token(token, expected_type=expected_type)
         if not claims:
             return None
         return TokenData(

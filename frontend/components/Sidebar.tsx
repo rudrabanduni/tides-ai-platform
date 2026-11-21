@@ -34,10 +34,10 @@ export default function Sidebar() {
 
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Startups', href: '/startups', icon: Rocket },
-    { name: 'Upload Deck', href: '/upload', icon: UploadCloud },
+    { name: 'Startup Portfolio', href: '/applications', icon: Rocket },
+    { name: 'New Application', href: '/applications/new', icon: UploadCloud },
     { name: 'Committee', href: '/committee', icon: Users },
-    { name: 'Portfolio', href: '/portfolio', icon: TrendingUp },
+    { name: 'Legacy Rankings', href: '/portfolio', icon: TrendingUp },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
@@ -52,15 +52,18 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="font-extrabold text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              TIDES Platform
+              TIDES-AI
             </h1>
-            <span className="text-xs text-slate-500">Intelligence Engine</span>
+            <span className="text-xs text-slate-500">TIEDS · IIT Roorkee diligence</span>
           </div>
         </div>
 
         <nav className="mt-6 px-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/applications' && pathname?.startsWith(item.href + '/')) ||
+              (item.href === '/applications' && !!pathname?.startsWith('/applications/') && pathname !== '/applications/new');
             const Icon = item.icon;
             return (
               <Link

@@ -1,36 +1,39 @@
 import { test, expect } from '@playwright/test';
+import { BACKEND_URL, FRONTEND_URL, login } from './helpers';
 
-test.describe('TIDES Frontend E2E Workflows', () => {
-  test('should verify login page elements and render credentials form', async ({ page }) => {
-    // We mock page load or navigate to localhost if dev server is running
-    await page.goto('http://localhost:3000/login', { waitUntil: 'networkidle', timeout: 5000 }).catch(() => {});
-    
-    // Fallback assert elements locally if server is offline
-    const title = await page.title().catch(() => 'TIDES');
-    expect(title).toBeDefined();
+// Requires the running demo stack (scripts/start_demo.ps1). Every assertion targets real pages
+// and real backend responses; nothing is mocked or intercepted.
+
+test.describe('TIDES-AI access control and core pages', () => {
+  test('login page renders and rejects invalid credentials', async ({ page }) => {
+    await page.goto(`${FRONTEND_URL}/login`);
+    await expect(page.getByRole('heading', { name: 'TIDES-AI' })).toBeVisible();
+    // Password is never prefilled
+    await expect(page.locator('input[type="password"]')).toHaveValue('');
+    await page.locator('input[type="email"]').fill('nobody@tides.ai');
+    await page.locator('input[type="password"]').fill('definitely-wrong-password');
+    await page.locator('button[type="submit"]').click();
+    await expect(page.locator('text=/invalid|incorrect|failed|credentials/i').first()).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/login/);
   });
 
-  test('should verify dashboard structure and elements', async ({ page }) => {
-    await page.goto('http://localhost:3000/dashboard', { waitUntil: 'networkidle', timeout: 5000 }).catch(() => {});
-    const content = await page.textContent('body').catch(() => 'Incubator Dashboard');
-    expect(content).toBeDefined();
+  test('protected pages redirect to login when signed out', async ({ page }) => {
+    for (const route of ['/dashboard', '/applications', '/applications/new']) {
+      await page.goto(`${FRONTEND_URL}${route}`);
+      await page.waitForURL('**/login', { timeout: 10000 });
+    }
   });
 
-  test('should verify startups listing table and filters', async ({ page }) => {
-    await page.goto('http://localhost:3000/startups', { waitUntil: 'networkidle', timeout: 5000 }).catch(() => {});
-    const content = await page.textContent('body').catch(() => 'Active Applicants');
-    expect(content).toBeDefined();
+  test('backend API refuses unauthenticated access to applications', async ({ request }) => {
+    const res = await request.get(`${BACKEND_URL}/api/v1/applications`);
+    expect(res.status()).toBe(401);
   });
 
-  test('should verify evaluation results and experts board', async ({ page }) => {
-    await page.goto('http://localhost:3000/evaluations/startup-1', { waitUntil: 'networkidle', timeout: 5000 }).catch(() => {});
-    const content = await page.textContent('body').catch(() => 'Founder Analysis');
-    expect(content).toBeDefined();
-  });
-
-  test('should verify report page view and export triggers', async ({ page }) => {
-    await page.goto('http://localhost:3000/reports/report-1', { waitUntil: 'networkidle', timeout: 5000 }).catch(() => {});
-    const content = await page.textContent('body').catch(() => 'Executive Summary');
-    expect(content).toBeDefined();
+  test('dashboard shows database-backed statistics after login', async ({ page }) => {
+    const dashboardResponse = page.waitForResponse((r) => r.url().startsWith(`${BACKEND_URL}/api/v1/applications-dashboard`) && r.status() === 200);
+    await login(page);
+    const body = await (await dashboardResponse).json();
+    await expect(page.getByTestId('stat-total')).toHaveText(String(body.total_applications));
+    await expect(page.getByTestId('stat-completed')).toHaveText(String(body.completed_evaluations));
   });
 });

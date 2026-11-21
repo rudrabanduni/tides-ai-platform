@@ -1,7 +1,7 @@
 import time
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from app.modules.evaluation.graph import (
@@ -38,13 +38,13 @@ def create_mock_startup_graph(
     graph.graph_id = startup_id
     graph.startup_name = name
     graph.category = category
-    graph.created_at = datetime.utcnow().isoformat() + "Z"
+    graph.created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     
     # 1. Documents
     doc = DocumentNode(
         node_id="doc-1", node_type=NodeType.DOCUMENT,
         document_id="doc-1", document_name="Pitch Deck",
-        document_type="PDF", uploaded_at=datetime.utcnow()
+        document_type="PDF", uploaded_at=datetime.now(timezone.utc)
     )
     graph.documents["doc-1"] = doc
     
@@ -93,7 +93,7 @@ def create_mock_startup_graph(
     exec_summary = ExecutiveSummary(overview="Exec Overview", strengths=[], weaknesses=[], opportunities=[], threats=[], missing_information=[])
     exec_asm = ExecutiveAssessment(
         node_id="exec-assessment", node_type=NodeType.EXECUTIVE,
-        assessment_id="exec-assessment", generated_at=datetime.utcnow().isoformat() + "Z",
+        assessment_id="exec-assessment", generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         summary=exec_summary, confidence=executive_confidence
     )
     graph.executive_assessment = exec_asm
@@ -120,7 +120,7 @@ def create_mock_startup_graph(
     
     inv = InvestmentAssessment(
         node_id="inv-assessment", node_type=NodeType.INVESTMENT,
-        assessment_id="inv-assessment", generated_at=datetime.utcnow().isoformat() + "Z",
+        assessment_id="inv-assessment", generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         recommendation=rec, confidence=confidence,
         investment_score=investment_score, readiness_score=80.0,
         risk_score=40.0, technology_score=75.0, market_score=75.0,

@@ -32,7 +32,17 @@ def db_session() -> Session:
 
 @pytest.fixture()
 def test_client(db_session: Session) -> TestClient:
+    import uuid
+    from types import SimpleNamespace
+    from app.security.auth import get_current_user
+
+    fake_admin = SimpleNamespace(
+        id=uuid.uuid4(),
+        is_active=True,
+        role=SimpleNamespace(name="admin"),
+    )
     app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_current_user] = lambda: fake_admin
     yield TestClient(app)
     app.dependency_overrides.clear()
 

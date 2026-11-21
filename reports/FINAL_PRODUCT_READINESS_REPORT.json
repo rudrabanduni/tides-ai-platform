@@ -1,0 +1,409 @@
+{
+  "audit_date": "2026-11-12",
+  "audit_mode": "TARGETED_PETREVOLT_EXTRACTION_RECOVERY_OFFLINE_VERIFIED",
+  "executive_status": "READY_WITH_LIMITATIONS",
+  "canonical_specifications": {
+    "rubric_total_criteria": 87,
+    "intake_completeness_criteria": 6,
+    "domain_criteria_total": 81,
+    "domain_breakdown": {
+      "problem_solution": {
+        "code": "PS",
+        "count": 13
+      },
+      "market_opportunity": {
+        "code": "MO",
+        "count": 10
+      },
+      "founder_team": {
+        "code": "FT",
+        "count": 13
+      },
+      "commercialisation": {
+        "code": "BC",
+        "count": 13
+      },
+      "innovation_impact": {
+        "code": "II",
+        "count": 11
+      },
+      "financials_support": {
+        "code": "FI",
+        "count": 21
+      }
+    },
+    "report_mandatory_sections_count": 11,
+    "report_mandatory_sections": [
+      "executive_summary",
+      "investment_recommendation",
+      "founder_assessment",
+      "product_technology",
+      "market_opportunity",
+      "business_model",
+      "competition",
+      "financial_overview",
+      "risks",
+      "investment_thesis",
+      "follow_up_questions"
+    ],
+    "report_validator_methods": [
+      "ReportValidator.validate",
+      "ReportValidator.validate_structured",
+      "ReportValidator.validate_cross_contamination"
+    ],
+    "cost_ceilings": {
+      "platform_default_usd": 0.55,
+      "platform_default_inr": 62.30,
+      "one_time_pilot_runner_usd": 0.35
+    }
+  },
+  "startup_validations": {
+    "stethaim": {
+      "classification": "PASS_HISTORICAL_FROZEN",
+      "startup_id": "a246f3a5-b797-43fc-9dc3-3e603e3b37b9",
+      "evaluation_id": "4dae8d45-5da1-4f6d-b964-95138c333c3f",
+      "report_id": "REPORT-7D708703",
+      "package_version": "v2.1.1-final-micro-patch",
+      "graph_file_sha256": "863C1F00159C2D1F994018AD7C6ABD7F9AE084E1D712918220F6F363FC71D036",
+      "graph_file_size_bytes": 520226,
+      "package_file_sha256": "9E33195DD5F04BCCC52031B296F0E3F8FFA912A8DCE4DF7B873CF1957D7B821F",
+      "metadata_file_sha256": "BFDCD58B49DCE8899D0AE9F93022784B541CE9B971512B3C8FDE083FA1073864",
+      "graph_hash_package": "590892fe72664930419dae847a866461ae0bb3364e8f2f8b8fa0f9f357acd853",
+      "graph_hash_artifact": "cb10b0d7523c8bf3a2dd3c8fb4bfbb656b557eb8233b0ad239cbebafaec3708b",
+      "report_validator_structured_valid": true,
+      "md_json_parity": true,
+      "telemetry": {
+        "confidence": "EXACT_REPORTED",
+        "operations": 19,
+        "models": [
+          "claude-haiku-5-5",
+          "claude-sonnet-5-5"
+        ],
+        "input_tokens": 103202,
+        "output_tokens": 28857,
+        "total_tokens": 132059,
+        "baseline_ops_usd": 0.214803,
+        "recovery_ops_usd": 0.055114,
+        "total_spent_usd": 0.269917,
+        "final_billed_inr": 30.5762,
+        "offline_patch_added_usd": 0.0
+      },
+      "artifacts": [
+        "reports/hand_off/STETHAIM_FINAL_REVIEW_PACKAGE_v2.1.json",
+        "reports/hand_off/STETHAIM_FINAL_REVIEW_PACKAGE_v2.1.md",
+        "uploads/graphs/a246f3a5-b797-43fc-9dc3-3e603e3b37b9.json",
+        "uploads/graphs/a246f3a5-b797-43fc-9dc3-3e603e3b37b9.metadata.json"
+      ]
+    },
+    "petrevolt": {
+      "target_startup_id": "1b5de317-6e56-4dcb-ada9-28ab9adf8c0c",
+      "company_name": "PETREVOLT ENERGY SOLUTIONS PVT LTD",
+      "real_model_status": "PARTIAL_EXTRACTION_FAILED",
+      "real_model_evaluation_id": "21d60370-d7cf-43d8-9c14-05b0cd5078a2",
+      "prompt_cited_evaluation_id_note": "Prompt wrote 21d60370-d7cf-43fd-9c14-05b0cd5078a2 (43fd); on-disk telemetry literally records 21d60370-d7cf-43d8-9c14-05b0cd5078a2 (43d8).",
+      "real_model_report_id": null,
+      "real_model_graph_id": null,
+      "real_model_domain_results": "NOT_RUN",
+      "real_model_final_recommendation": "NOT_RUN",
+      "real_model_spend_usd": 0.012323,
+      "real_model_buffered_spend_inr": 1.3959,
+      "real_model_budget_limit_usd": 0.35,
+      "real_model_remaining_budget_usd": 0.337677,
+      "real_model_total_operations": 10,
+      "real_model_extraction_stages_succeeded": 9,
+      "real_model_failed_extraction_stage": "extraction_financials_support",
+      "real_model_failure_operation_id": "op_9aeb54379528",
+      "real_model_failure_reason": "PARSE_ERROR / finish_reason='length' truncation at 2,400 output tokens (7,511 input tokens)",
+      "real_model_input_tokens": 57781,
+      "real_model_output_tokens": 13091,
+      "real_model_total_tokens": 70872,
+      "real_model_recovery_calls": 0,
+      "real_model_partial_telemetry_archive": "reports/telemetry/eval_21d60370-d7cf-43d8-9c14-05b0cd5078a2_partial_extraction_failed.json",
+      "real_model_preflight": {
+        "checked_at": "2026-11-12T00:31+05:30",
+        "anthropic_api_key_configured": false,
+        "anthropic_api_key_scopes_checked": {
+          "process_env": false,
+          "user_registry_hkcu": false,
+          "machine_registry_hklm": false,
+          "dotenv_file": false
+        },
+        "readiness_status": "READY_FOR_CREDENTIALS",
+        "live_gateway_verified": "LiteLLMGateway",
+        "check_environment_execute_live_ok": false,
+        "check_environment_message": "FATAL: ANTHROPIC_API_KEY is missing or empty. Live evaluation aborted.",
+        "active_dotenv_app_env": "development",
+        "active_dotenv_ai_provider": "mock",
+        "active_dotenv_ai_enabled": false,
+        "active_dotenv_database_url": "sqlite:///./tides_dev.db",
+        "isolated_db_target": "tides_dev.db",
+        "startup_1b5de317_in_tides_ai_db": false,
+        "startup_1b5de317_in_tides_dev_db": true,
+        "tides_dev_db_evaluations": 0,
+        "tides_dev_db_ai_records_total": 15,
+        "tides_dev_db_petrevolt_mock_claims": 127,
+        "prior_completed_real_model_run_exists": false,
+        "source_document_verified": "uploads/1b5de317-6e56-4dcb-ada9-28ab9adf8c0c/e701e866-873e-41d0-a1be-dfa2402b7ea9_PETREVOLT ENERGY SOLUTIONS- Pitch Deck.pdf",
+        "source_document_size_bytes": 2933903,
+        "source_document_pages": 12,
+        "source_document_checksum_md5": "cc3c4fca41fae9671c560f7ef272d24f",
+        "source_document_sha256": "E5B0CF6AED4A1B156F425C40563F2CDD7ED28E4808D1EA9B28198DB4DE5DCD4F",
+        "financials_support_output_token_limit_updated": 4096,
+        "extraction_checkpoint_exists_for_21d60370": false,
+        "extraction_recovery_mode_for_21d60370": "CONTINUATION_REPLACEMENT",
+        "parent_evaluation_preserved_status": "PRESERVED_PARTIAL_FAILURE",
+        "extraction_recovery_projected_cumulative_usd": 0.2822,
+        "ledger_and_reservation_verified_in_code": true,
+        "cli_petrevolt_dry_run_ok": true,
+        "cli_extraction_recovery_dry_run_ok": true,
+        "ps_extraction_recovery_dry_run_ok": true,
+        "cli_execute_live_fail_closed_exit_code": 1,
+        "runner_gap_note": "Resolved: financials_support cap raised to 4,096 tokens, compact JSON rules added, atomic extraction checkpointing added, recover_failed_extraction_evaluation two-mode recovery (CHECKPOINT_RESUME vs CONTINUATION_REPLACEMENT preserving 21d60370 as PRESERVED_PARTIAL_FAILURE with parent_evaluation_id lineage and $0.012323 carried-forward spend) & --recover-extraction-stage CLI/PS flags implemented and dry-run verified; interactive ANTHROPIC_API_KEY entry via run_live_eval.ps1 required to execute live recovery."
+      },
+      "mock_validation_status": "PASS_MOCK_ONLY",
+      "subject_domain": "Waste-PET solvolysis for solid-state sodium-ion batteries (-70°C to +45°C)",
+      "package_reference": {
+        "package_version": "v1.1.0-reconciled-mock",
+        "startup_id": "f099fa55-f797-4145-b5f3-9c801c8b4e67",
+        "evaluation_id": "ae874f0a-3b17-435c-be78-76732a1aa604",
+        "report_id": "REPORT-1826F99C",
+        "graph_hash": "8d3de1e84c323a21ceaff92638aa4a01cae888c9e227442293235a4825a99234",
+        "package_file_sha256": "7D7B874278E920AC3BE12D5DA38A626ABA9F1509E79C36FB2F5209ABE71A0EDA",
+        "package_json_size_bytes": 582519,
+        "package_md_size_bytes": 38236,
+        "simulated_usd": 0.095286,
+        "simulated_inr": 10.7941,
+        "actual_provider_spend_usd": 0.0
+      },
+      "latest_mock_metadata": {
+        "startup_id": "f099fa55-f797-4145-b5f3-9c801c8b4e67",
+        "evaluation_id": "ae874f0a-3b17-435c-be78-76732a1aa604",
+        "confidence": "ESTIMATED_FROM_TOKENS",
+        "operations": 17,
+        "finish_reason": null,
+        "total_latency_ms": 3.61,
+        "input_tokens": 60650,
+        "output_tokens": 7157,
+        "total_tokens": 67807,
+        "simulated_usd": 0.095286,
+        "simulated_inr": 10.7941,
+        "actual_provider_spend_usd": 0.0
+      },
+      "lineage_reconciliation": {
+        "status": "RECONCILED_ON_DISK",
+        "authoritative_graph_file_sha256": "DFDE432CB55A1DAD2E5AB5DBA203D1AB584587B2DE3AADB9C8F50FA8CC3DACE7",
+        "authoritative_graph_size_bytes": 655303,
+        "superseded_mock_run": {
+          "startup_id": "1b5de317-6e56-4dcb-ada9-28ab9adf8c0c",
+          "report_id": "REPORT-3A96C3FD",
+          "graph_hash": "44a63cec09a3d5bd9013ee700c9e854168f2f28aff714f66617949bf88639be2",
+          "archived_copy": "reports/hand_off/archive/1b5de317-6e56-4dcb-ada9-28ab9adf8c0c.superseded_copy_of_f099fa55.json"
+        },
+        "report_validator_structured_valid": true,
+        "md_json_parity": true
+      },
+      "artifacts": [
+        "reports/hand_off/PETREVOLT_FINAL_REVIEW_PACKAGE.json",
+        "reports/hand_off/PETREVOLT_FINAL_REVIEW_PACKAGE.md",
+        "uploads/graphs/f099fa55-f797-4145-b5f3-9c801c8b4e67.json",
+        "uploads/graphs/REPORT-1826F99C.json",
+        "uploads/graphs/f099fa55-f797-4145-b5f3-9c801c8b4e67.metadata.json",
+        "reports/hand_off/archive/1b5de317-6e56-4dcb-ada9-28ab9adf8c0c.superseded_copy_of_f099fa55.json"
+      ]
+    },
+    "cleanpower_systems": {
+      "startup_id": "9b8174247d774a1fa927a432b12564eb",
+      "validation_classification": "OFFLINE_REGRESSION_ONLY",
+      "stub_artifact": "uploads/graphs/REPORT-BBD93B93.json",
+      "stub_artifact_note": "8-line minimal stub reconstructed by scripts/restore_stethaim_graph.py, not a full live evaluation report.",
+      "historical_pre_hardening_partial_live_runs": [
+        {
+          "run": "Oct 24 Run 1",
+          "outcome": "extraction + Sonnet PARSE_ERROR (remote charge unrecorded locally before ledger persistence fix)",
+          "recorded_usd": null
+        },
+        {
+          "run": "Oct 24 Run 2 (eval f73e0e34-f878-4d25-853c-e6b6e9abd071, 7 ops)",
+          "outcome": "partial live run (buffered INR 41.28)",
+          "recorded_usd": 0.364382
+        },
+        {
+          "run": "Oct 25 Run 3",
+          "outcome": "6 domain truncations at 1800 tokens + supervisory 1422 tokens (USD total unrecorded in transcript)",
+          "recorded_usd": null
+        },
+        {
+          "run": "Oct 25 Run 4 (5/6 domains + supervisory)",
+          "outcome": "partial live run (buffered ~INR 21.65)",
+          "recorded_usd": 0.1911
+        }
+      ]
+    },
+    "multi_sector_generalization_offline": {
+      "suite": "tests/test_multi_sector_generalization.py",
+      "status": "PASS",
+      "execution_mode": "OFFLINE_MOCK_GATEWAY",
+      "sectors_verified": [
+        "MedTech",
+        "Clean Energy",
+        "Battery Tech",
+        "Enterprise SaaS",
+        "AgriTech",
+        "Manufacturing"
+      ],
+      "passed": 6,
+      "failed": 0,
+      "actual_spend_usd": 0.0
+    },
+    "third_startup_real_model": {
+      "status": "NOT_RUN",
+      "actual_spend_usd": 0.0
+    }
+  },
+  "cost_reconciliation": {
+    "recovery_engineering_cycle_new_paid_spend_usd": 0.0,
+    "petrevolt_partial_live_extraction_21d60370_usd": 0.012323,
+    "stethaim_completed_historical_usd": 0.269917,
+    "stethaim_prior_aborted_extractions_usd": 0.0198,
+    "cleanpower_historical_recorded_partial_live_usd": 0.555482,
+    "cumulative_known_recorded_paid_spend_usd": 0.857522,
+    "unrecorded_historical_partial_runs": [
+      "CleanPower Oct 24 Run 1 (Sonnet PARSE_ERROR before ledger persistence fix)",
+      "CleanPower Oct 25 Run 3 (6 domain truncations + supervisory without recorded USD total)"
+    ],
+    "simulated_mock_telemetry_not_paid_spend": {
+      "petrevolt_mock_simulated_usd": 0.095286,
+      "petrevolt_mock_actual_usd": 0.0
+    }
+  },
+  "telemetry_isolation": {
+    "status": "VERIFIED_ISOLATED",
+    "path": "reports/live_eval_run_report.json",
+    "archive_path": "reports/telemetry/eval_21d60370-d7cf-43d8-9c14-05b0cd5078a2_partial_extraction_failed.json",
+    "size_bytes": 7372,
+    "last_write_time_local": "2026-11-12 00:10:45",
+    "sha256_preserved": "80E8D0DE02A11BC12621CCBCA9AF12B358D04B3B8C3C227EFD1CE4064A0A1D2B",
+    "mechanisms": [
+      "app/modules/ai/orchestrator/pipeline.py::_resolve_live_eval_report_path (read + write paths honor TIDES_LIVE_EVAL_REPORT_PATH)",
+      "app/modules/ai/orchestrator/pipeline.py::_persist_telemetry_report (archives previous live_eval_run_report.json to reports/telemetry/eval_<prev_id>.json and writes per-eval telemetry copies)",
+      "scripts/run_one_time_live_eval.py::_resolve_run_report_path (honors TIDES_LIVE_EVAL_REPORT_PATH unless test patches PROJECT_ROOT)",
+      "tests/conftest.py (autouse env isolation to temp report path)",
+      "tests/test_domain_recovery.py::test_recovery_preserves_workspace_telemetry_sha256"
+    ]
+  },
+  "test_results": {
+    "backend_pytest": {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/ --tb=short",
+      "status": "PASS",
+      "files": 74,
+      "executed": 673,
+      "passed": 673,
+      "skipped": 0,
+      "failed": 0,
+      "warnings": 342,
+      "duration_seconds": 96.16,
+      "datetime_utcnow_warnings_remaining": 0,
+      "targeted_extraction_recovery_and_safety_run": "pytest tests/test_extraction_recovery.py tests/test_extraction_reliability.py tests/test_stethaim_pilot_preflight.py tests/test_domain_recovery.py tests/test_live_eval_safety.py tests/test_runtime_guards_and_cli.py --tb=short -q -> 84 passed (exit 0)"
+    },
+    "frontend_vitest": {
+      "command": ".\\.node\\node-v22.11.0-win-x64 toolchain: .\\node_modules\\.bin\\vitest.cmd run",
+      "node_runtime": ".node\\node-v22.11.0-win-x64\\node.exe (v22.11.0)",
+      "status": "PASS",
+      "files_passed": 4,
+      "tests_passed": 30,
+      "tests_failed": 0,
+      "test_files_passed": [
+        "frontend/tests/auth.test.ts",
+        "frontend/tests/api.test.ts",
+        "frontend/tests/domain_mapping.test.ts",
+        "frontend/tests/components.test.ts"
+      ]
+    },
+    "frontend_playwright_e2e": {
+      "command": "node_modules/@playwright/test/cli.js test --config=playwright.config.ts",
+      "node_runtime": "C:\\Users\\gajab\\AppData\\Local\\ms-playwright-go\\1.57.0\\node.exe (v24.11.1)",
+      "browser_binary": "C:\\Users\\gajab\\AppData\\Local\\ms-playwright\\chromium-1228\\chrome-win64\\chrome.exe",
+      "backend_mode": "Isolated temp SQLite DB + temp UPLOAD_DIR + temp TIDES_LIVE_EVAL_REPORT_PATH (AI_PROVIDER=mock)",
+      "status": "PASS",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 8.9,
+      "specs_passed": [
+        "frontend/tests/e2e.spec.ts (5 workflows)",
+        "frontend/tests/smoke.spec.ts (1 full upload/eval/report/PDF download workflow)"
+      ]
+    },
+    "frontend_typecheck_lint_build": {
+      "node_runtime": ".node\\node-v22.11.0-win-x64\\node.exe (v22.11.0)",
+      "tsc_noEmit_exit_code": 0,
+      "eslint_exit_code": 0,
+      "eslint_note": "ESLintEmptyConfigWarning emitted from frontend/eslint.config.mjs",
+      "next_build_exit_code": 0,
+      "next_version": "15.1.0",
+      "routes_built": 12
+    }
+  },
+  "security_and_hardening_summary": {
+    "rbac_role_seeding_fixed": "app/modules/users/service.py DEFAULT_ROLE_DESCRIPTIONS completed for all 7 RoleName entries (verified by tests/test_security_hardening.py::test_role_rbac_allows_incubation_manager_and_analyst)",
+    "graph_sidecar_filtering_fixed": "app/api/dependencies.py EvaluationService.list_evaluated_startups and get_all_graphs exclude .metadata.json, REPORT-*.json, portfolio.json, and dotfiles while retaining report alias lookup",
+    "evaluate_startup_auth_verified": "POST /evaluate-startup requires EvaluatorUser and fails closed with 401 when unauthenticated",
+    "telemetry_isolation_fixed": "app/modules/ai/orchestrator/pipeline.py (_resolve_live_eval_report_path) and scripts/run_one_time_live_eval.py (_resolve_run_report_path) route recovery/test telemetry via TIDES_LIVE_EVAL_REPORT_PATH without overwriting reports/live_eval_run_report.json",
+    "dev_and_prod_database_isolation_fixed": ".env, .env.example, and Settings.database_url default to sqlite:///./tides_dev.db; resolve_sqlite_db_path, validate_database_configuration, and _enforce_database_policy (in app/core/config.py and create_app() in app/api/main.py) fail closed on tides_ai.db across all environments and block SQLite/tides_dev.db/implicit DB defaults under APP_ENV=production",
+    "existing_startup_and_cli_targeting_fixed": "coordinate_evaluation_pipeline accepts existing_startup_id and max_budget_usd, keeps ai_provider out of investor-facing generated_report.metadata, and scripts/run_one_time_live_eval.py + run_live_eval.ps1 add --petrevolt / --startup-id (-Petrevolt / -StartupId) with $0.35 forwarding",
+    "production_gateway_and_budget_controls_hardened": "create_ai_gateway rejects mock in APP_ENV=production (unless force_mock=True) and fails closed without ANTHROPIC_API_KEY; cost_ledger.py/litellm.py/mock.py enforce finite non-negative bounds and strict ceiling clamping; .env.production.example added and un-ignored via .gitignore",
+    "frontend_hardening_fixes": [
+      "Removed /api/v1/auth/bootstrap-admin fallback from login()",
+      "Added concurrent-401 refresh deduplication, rotated token persistence, and SSR window guards in api-client.ts",
+      "Unwrapped {data} and {data:{items}} API envelopes consistently in services/api.ts",
+      "Removed hardcoded mock committee board, mock API keys, and fallback scores/confidences across pages"
+    ],
+    "extraction_recovery_and_checkpointing": "financials_support extraction cap raised from 2,400 to 4,096 tokens (9 other stages kept at 2,400); compact JSON prompt instructions added; atomic per-stage checkpointing in extraction_checkpoint.py; recover_failed_extraction_evaluation supports CHECKPOINT_RESUME and CONTINUATION_REPLACEMENT (preserving pre-checkpoint partial attempt as PRESERVED_PARTIAL_FAILURE, creating one linked continuation evaluation ID with parent_evaluation_id across checkpoint/telemetry/graph metadata, and carrying forward $0.012323 into the $0.35 ledger); --recover-extraction-stage CLI/PS flags implemented; telemetry archiving added in _persist_telemetry_report",
+    "deprecation_cleanup": "Zero datetime.utcnow() calls remaining in app/ or tests/"
+  },
+  "operator_command_verification": {
+    "verified_offline": [
+      ".venv\\Scripts\\python.exe scripts/check_live_readiness.py",
+      ".venv\\Scripts\\python.exe scripts/run_one_time_live_eval.py --help",
+      ".venv\\Scripts\\python.exe scripts/run_one_time_live_eval.py --petrevolt",
+      ".venv\\Scripts\\python.exe scripts/run_one_time_live_eval.py --stethaim-pilot",
+      ".venv\\Scripts\\python.exe scripts/run_one_time_live_eval.py --recover-evaluation-id 21d60370-d7cf-43d8-9c14-05b0cd5078a2 --recover-startup-id 1b5de317-6e56-4dcb-ada9-28ab9adf8c0c --recover-extraction-stage financials_support",
+      "powershell -ExecutionPolicy Bypass -File scripts/run_live_eval.ps1 -RecoverEvaluationId 21d60370-d7cf-43d8-9c14-05b0cd5078a2 -RecoverStartupId 1b5de317-6e56-4dcb-ada9-28ab9adf8c0c -RecoverExtractionStage financials_support",
+      ".venv\\Scripts\\python.exe scripts/run_one_time_live_eval.py --execute-live --recover-evaluation-id 21d60370-d7cf-43d8-9c14-05b0cd5078a2 --recover-startup-id 1b5de317-6e56-4dcb-ada9-28ab9adf8c0c --recover-extraction-stage financials_support (verified fail-closed exit 1 without ANTHROPIC_API_KEY)"
+    ],
+    "unverified_in_offline_closeout": [
+      "Live recovery command with --execute-live / -ExecuteLive against Anthropic endpoints (failed closed without ANTHROPIC_API_KEY)"
+    ]
+  },
+  "protected_database": {
+    "path": "tides_ai.db",
+    "size_bytes": 3149824,
+    "startup_applications_rows": 50,
+    "sha256": "D9659F4E8C1058C5D5F4511E1BB22D3ABE6CB12101C16CE397416051A38176C7",
+    "status": "VERIFIED_UNCHANGED"
+  },
+  "unresolved_limitations": [
+    "PETREVOLT real-model evaluation 21d60370-d7cf-43d8-9c14-05b0cd5078a2 remains PARTIAL_EXTRACTION_FAILED ($0.012323 USD spent; $0.337677 remaining of $0.35 ceiling) and third startup real-model remains NOT_RUN: ANTHROPIC_API_KEY is absent/empty across Process, HKCU, HKLM, and .env. Execute interactively with .\\scripts\\run_live_eval.ps1 -ExecuteLive -RecoverEvaluationId 21d60370-d7cf-43d8-9c14-05b0cd5078a2 -RecoverStartupId 1b5de317-6e56-4dcb-ada9-28ab9adf8c0c -RecoverExtractionStage financials_support.",
+    "Because evaluation 21d60370-d7cf-43d8-9c14-05b0cd5078a2 occurred before extraction_checkpoint.py existed and left no extract payloads in checkpoints/graphs/tides_dev.db, recovery triggers CONTINUATION_REPLACEMENT: preserving 21d60370 untouched as PRESERVED_PARTIAL_FAILURE, creating a linked continuation evaluation ID with parent_evaluation_id lineage, carrying forward $0.012323 spend in the cumulative $0.35 ledger, and saving atomic per-stage checkpoints going forward.",
+    "Global node/npm is absent from default Windows PATH; working tree on release/v1.0.0 holds uncommitted modifications; CleanPower Oct 24 Run 1 and Oct 25 Run 3 lack recorded local USD totals."
+  ],
+  "key_artifacts": [
+    "app/modules/ai/orchestrator/extraction_checkpoint.py",
+    "app/modules/ai/orchestrator/startup_profile_extraction.py",
+    "app/modules/ai/orchestrator/pipeline.py",
+    "scripts/run_one_time_live_eval.py",
+    "scripts/run_live_eval.ps1",
+    "tests/test_extraction_recovery.py",
+    "reports/telemetry/eval_21d60370-d7cf-43d8-9c14-05b0cd5078a2_partial_extraction_failed.json",
+    "reports/AUTONOMOUS_EXECUTION_LOG.md",
+    "reports/FINAL_PRODUCT_READINESS_REPORT.md",
+    "reports/FINAL_PRODUCT_READINESS_REPORT.json",
+    "reports/live_eval_run_report.json",
+    "docs/OPERATOR_GUIDE.md",
+    "reports/hand_off/STETHAIM_FINAL_REVIEW_PACKAGE_v2.1.json",
+    "reports/hand_off/STETHAIM_FINAL_REVIEW_PACKAGE_v2.1.md",
+    "reports/hand_off/PETREVOLT_FINAL_REVIEW_PACKAGE.json",
+    "reports/hand_off/PETREVOLT_FINAL_REVIEW_PACKAGE.md",
+    "tides_ai.db"
+  ]
+}

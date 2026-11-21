@@ -1,7 +1,7 @@
 import json
 import time
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Any
 
 from app.modules.evaluation.graph import (
@@ -259,7 +259,7 @@ def test_duplicate_resolution():
         correlation_type="DUPLICATES",
         description="Duplicate observations.",
         confidence=0.9,
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     graph.correlations[corr_id] = corr
     
@@ -354,7 +354,7 @@ def test_invalid_resolution(sample_graph):
         supporting_claims=[],
         supporting_evidence=[],
         supporting_assessments=[],
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     graph.resolutions[res_id] = orphan_node
     errors = ConflictResolutionValidator.validate(graph)
@@ -500,7 +500,7 @@ def test_large_graph_resolution_performance():
             correlation_type=corr_type,
             description=f"Correlation {i}",
             confidence=0.85,
-            created_at=datetime.utcnow().isoformat() + "Z"
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
         graph.correlations[corr_id] = corr
         # Link correlation to observations

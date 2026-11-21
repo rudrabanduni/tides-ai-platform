@@ -11,6 +11,7 @@ from app.core.enums import DocumentType
 from app.api.responses import make_response
 from app.api.exceptions import DocumentNotFoundError, StartupNotFoundError
 from app.modules.startups.models import StartupApplication
+from app.modules.auth.dependencies import AdminUser, EvaluatorUser, ReadOnlyUser
 
 router = APIRouter(tags=["Documents"])
 
@@ -27,6 +28,7 @@ def map_to_document_type(doc_type_str: str) -> DocumentType:
 @router.post("/documents/upload", status_code=status.HTTP_201_CREATED)
 def upload_document(
     request: Request,
+    current_user: EvaluatorUser,
     startup_id: UUID = Form(..., description="The startup application ID"),
     document_type: str = Form(default="Pitch Deck", description="Type of document"),
     file: UploadFile = File(..., description="File payload"),
@@ -45,7 +47,7 @@ def upload_document(
         startup_id=startup_id,
         file=file,
         document_type=doc_type,
-        actor_id=None
+        actor_id=current_user.id
     )
     
     # Run parsing pipeline to populate claims/evidence
@@ -72,7 +74,7 @@ def upload_document(
     return make_response(request, data=data, message="Document uploaded and processing started successfully")
 
 @router.get("/documents/{document_id}")
-def get_document(request: Request, document_id: UUID = Path(...), db: Session = Depends(get_db)):
+def get_document(request: Request, current_user: ReadOnlyUser, document_id: UUID = Path(...), db: Session = Depends(get_db)):
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise DocumentNotFoundError(str(document_id))
@@ -91,7 +93,7 @@ def get_document(request: Request, document_id: UUID = Path(...), db: Session = 
     return make_response(request, data=data, message="Document retrieved successfully")
 
 @router.delete("/documents/{document_id}")
-def delete_document(request: Request, document_id: UUID = Path(...), db: Session = Depends(get_db)):
+def delete_document(request: Request, current_user: AdminUser, document_id: UUID = Path(...), db: Session = Depends(get_db)):
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise DocumentNotFoundError(str(document_id))

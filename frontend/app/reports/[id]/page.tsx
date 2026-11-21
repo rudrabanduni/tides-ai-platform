@@ -13,15 +13,26 @@ import {
   AlertTriangle,
   FileCode,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Layers,
+  FileDown,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
-import { Report } from '@/types';
+import { FinalReviewAssessment, DomainAssessmentReport } from '@/types';
+import { SupervisoryReviewView } from '@/components/SupervisoryReviewView';
+import { CanonicalDomainsView } from '@/components/CanonicalDomainsView';
 
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user } = useAuth();
   const router = useRouter();
+
+  // View mode tab: 'supervisory' | 'domains' | 'markdown' | 'sectional'
+  const [activeTab, setActiveTab] = useState<'supervisory' | 'markdown' | 'sectional'>('supervisory');
   const [activeSection, setActiveSection] = useState('executive');
+  const [markdownContent, setMarkdownContent] = useState<string | null>(null);
+  const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -30,11 +41,23 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     }
   }, [user, router]);
 
-  const { data: report, isLoading, error } = useQuery({
+  const { data: report, isLoading, error, refetch } = useQuery({
     queryKey: ['reportDetails', id],
     queryFn: () => apiService.getReport(id),
     enabled: !!user && !!id,
+    retry: 2,
   });
+
+  // Fetch markdown on demand when markdown tab is selected
+  useEffect(() => {
+    if (activeTab === 'markdown' && !markdownContent && id) {
+      setIsLoadingMarkdown(true);
+      apiService.getReportMarkdown(id)
+        .then((md) => setMarkdownContent(md))
+        .catch(() => setMarkdownContent('# Due Diligence Report\n\nFailed to load live markdown.'))
+        .finally(() => setIsLoadingMarkdown(false));
+    }
+  }, [activeTab, markdownContent, id]);
 
   if (!user) {
     return (
@@ -62,20 +85,40 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
           <h3 className="text-lg font-bold text-slate-200">Report Not Found</h3>
           <p className="text-sm text-slate-400">
-            The requested investment committee due diligence report ID could not be resolved.
+            The requested investment committee due diligence report ({id}) could not be resolved or is currently being generated.
           </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-          >
-            Return to Dashboard
-          </button>
+          <div className="flex justify-center space-x-3 pt-2">
+            <button
+              onClick={() => refetch()}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg px-4 py-2 text-xs font-semibold transition-colors flex items-center space-x-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+            <button
+              onClick={() => router.push('/upload')}
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-xs font-semibold transition-colors"
+            >
+              Go to Uploader
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Custom inline styles parser for bold tags
+  // Extract Supervisory Review and Domain Reports with robust fallbacks
+  const supervisoryReview: FinalReviewAssessment | null =
+    (report.final_review as FinalReviewAssessment) ||
+    (report.metadata?.final_review as FinalReviewAssessment) ||
+    null;
+
+  const domainReports: Record<string, DomainAssessmentReport> =
+    (report.domain_reports as Record<string, DomainAssessmentReport>) ||
+    (report.metadata?.domain_reports as Record<string, DomainAssessmentReport>) ||
+    {};
+
+  // Helper parsers for sectional view
   const parseInlineStyles = (text: string) => {
     const parts = text.split(/\*\*(.*?)\*\*/g);
     return parts.map((part, index) => {
@@ -86,7 +129,6 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     });
   };
 
-  // Custom markdown block elements parser
   const renderMarkdownContent = (text: string) => {
     const lines = text.split('\n');
     const renderedElements: React.ReactNode[] = [];
@@ -193,155 +235,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     return renderedElements;
   };
 
-  // Custom table element parser
-  const parseAndRenderTable = (content: string, startTag: string, endTag: string, type: 'founder' | 'risk') => {
-    const parts = content.split(startTag);
-    const before = parts[0];
-    const tableBlock = parts[1].split(endTag)[0];
-    const after = parts[1].split(endTag)[1] || '';
-
-    const lines = tableBlock.trim().split('\n');
-    const headers = lines[0].split('|').map(h => h.trim());
-    const rows = lines.slice(1).map(line => line.split('|').map(cell => cell.trim()));
-
-    return (
-      <div className="space-y-6 w-full">
-        {before && <div className="text-slate-300 text-sm leading-relaxed space-y-2">{renderMarkdownContent(before)}</div>}
-        
-        <div className="bg-slate-950 border border-slate-800/80 rounded-xl overflow-hidden shadow-lg shadow-black/20">
-          <table className="min-w-full divide-y divide-slate-800 text-xs">
-            <thead className="bg-slate-900/80">
-              <tr>
-                {headers.map((h, i) => (
-                  <th key={i} className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-900 bg-slate-950/40">
-              {rows.map((row, rIdx) => (
-                <tr key={rIdx} className="hover:bg-slate-900/30 transition-all">
-                  {row.map((cell, cIdx) => {
-                    let cellContent: React.ReactNode = cell;
-                    if (type === 'risk' && cIdx === 1) {
-                      const isHigh = cell.toLowerCase() === 'high' || cell.toLowerCase() === 'critical';
-                      const isMed = cell.toLowerCase() === 'medium';
-                      cellContent = (
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isHigh ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 
-                          isMed ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
-                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        }`}>
-                          {cell}
-                        </span>
-                      );
-                    } else if (type === 'risk' && cIdx === 2) {
-                      const isHigh = cell.toLowerCase() === 'high';
-                      const isMed = cell.toLowerCase() === 'medium';
-                      cellContent = (
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isHigh ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 
-                          isMed ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
-                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        }`}>
-                          {cell}
-                        </span>
-                      );
-                    } else if (cIdx === row.length - 1) {
-                      cellContent = <span className="font-mono text-slate-400">{cell}</span>;
-                    }
-                    
-                    return (
-                      <td key={cIdx} className="px-4 py-3.5 text-slate-300 leading-relaxed max-w-[200px] break-words">
-                        {cellContent}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {after && <div className="text-slate-300 text-sm leading-relaxed space-y-2">{renderMarkdownContent(after)}</div>}
-      </div>
-    );
-  };
-
-  // Section Content layout builder
   const renderSectionContent = (content: string) => {
     if (!content) return <span className="text-slate-500 italic">No details available.</span>;
-
-    if (content.includes('[METRICS]') && content.includes('[/METRICS]')) {
-      const parts = content.split('[METRICS]');
-      const metricsBlock = parts[1].split('[/METRICS]')[0];
-      const after = parts[1].split('[/METRICS]')[1] || '';
-
-      const lines = metricsBlock.trim().split('\n');
-      const metrics: { [key: string]: string } = {};
-      lines.forEach(line => {
-        if (line.includes(':')) {
-          const [k, v] = line.split(':');
-          metrics[k.trim()] = v.trim();
-        }
-      });
-
-      const getRecBadgeClass = (rec: string) => {
-        switch (rec?.toUpperCase()) {
-          case 'INVEST': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-          case 'WATCH': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-          case 'DEFER': return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
-          case 'REJECT': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-          default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
-        }
-      };
-
-      return (
-        <div className="space-y-6 w-full">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Recommendation</span>
-              <span className={`inline-block mt-2 px-2.5 py-1 text-xs font-bold rounded-lg text-center ${getRecBadgeClass(metrics['Recommendation'])}`}>
-                {metrics['Recommendation'] || 'WATCH'}
-              </span>
-            </div>
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Overall Score</span>
-              <span className="text-xl font-bold text-slate-100 mt-2 block">{metrics['Overall Score'] || '80 / 100'}</span>
-            </div>
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Confidence</span>
-              <span className="text-xl font-bold text-blue-400 mt-2 block">{metrics['Confidence'] || '85%'}</span>
-            </div>
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Stage</span>
-              <span className="text-xl font-bold text-purple-400 mt-2 block">{metrics['Stage'] || 'Pre-Seed'}</span>
-            </div>
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Sector</span>
-              <span className="text-xl font-bold text-slate-100 mt-2 block overflow-hidden text-ellipsis whitespace-nowrap">{metrics['Sector'] || 'DeepTech'}</span>
-            </div>
-            <div className="bg-slate-900/60 p-4 border border-slate-800 rounded-xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">TRL</span>
-              <span className="text-xl font-bold text-indigo-400 mt-2 block">{metrics['TRL'] || 'TRL-4'}</span>
-            </div>
-          </div>
-
-          <div className="text-slate-300 text-sm leading-relaxed space-y-4">
-            {renderMarkdownContent(after)}
-          </div>
-        </div>
-      );
-    }
-
-    if (content.includes('[FOUNDER_TABLE]') && content.includes('[/FOUNDER_TABLE]')) {
-      return parseAndRenderTable(content, '[FOUNDER_TABLE]', '[/FOUNDER_TABLE]', 'founder');
-    }
-    if (content.includes('[RISK_TABLE]') && content.includes('[/RISK_TABLE]')) {
-      return parseAndRenderTable(content, '[RISK_TABLE]', '[/RISK_TABLE]', 'risk');
-    }
-
     return (
       <div className="text-slate-300 text-sm leading-relaxed space-y-4">
         {renderMarkdownContent(content)}
@@ -349,7 +244,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     );
   };
 
-  // Sections navigation mapping
+  // Section items for legacy view
   const menuItems = [
     { id: 'executive', name: '1. Executive Summary', data: report.executive_summary },
     { id: 'investment_rec', name: '2. Investment Recommendation', data: report.investment_recommendation },
@@ -369,14 +264,42 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const downloadPdf = async () => {
     try {
       const blob = await apiService.getReportPdf(id);
+      if (blob.type === 'application/json') {
+        const errText = await blob.text();
+        const errJson = JSON.parse(errText);
+        alert(errJson.message || errJson.detail || 'Failed to download PDF report from server.');
+        return;
+      }
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `TIDES_Due_Diligence_Report_${id}.pdf`;
+      link.download = `Due_Diligence_Report_${id}.pdf`;
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Failed to download PDF report.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to download PDF report. Ensure backend report engine is available.');
+    }
+  };
+
+  const downloadMarkdown = async () => {
+    try {
+      let md = markdownContent;
+      if (!md) {
+        md = await apiService.getReportMarkdown(id);
+      }
+      if (!md || typeof md !== 'string') {
+        alert('Markdown content unavailable from server.');
+        return;
+      }
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Due_Diligence_Report_${id}.md`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to download Markdown report.');
     }
   };
 
@@ -392,89 +315,190 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between border-b border-slate-900 pb-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center space-x-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </button>
+    <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-4">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </button>
+          <span className="text-slate-700">|</span>
+          <span className="text-xs text-slate-400">Due Diligence Report:</span>
+          <span className="font-mono text-xs font-bold text-slate-200">{report.report_id}</span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider ml-1">
+            MOCK DEMONSTRATION
+          </span>
+        </div>
 
-        <div className="flex space-x-3">
+        {/* Export Buttons */}
+        <div className="flex items-center space-x-2.5">
           <button
             onClick={downloadJson}
-            className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg px-4 py-2 text-xs font-semibold transition-all"
+            className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            title="Download full JSON traceability graph"
           >
-            <FileCode className="w-4 h-4 text-indigo-400" />
-            <span>Export Traceability JSON</span>
+            <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+            <span>JSON</span>
+          </button>
+          <button
+            onClick={downloadMarkdown}
+            className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            title="Download Markdown report"
+          >
+            <FileDown className="w-3.5 h-3.5 text-blue-400" />
+            <span>Markdown</span>
           </button>
           <button
             onClick={downloadPdf}
-            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 text-xs font-semibold transition-all shadow-lg shadow-blue-500/10"
+            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-md shadow-blue-500/20"
+            title="Download PDF report"
           >
-            <DownloadCloud className="w-4 h-4" />
+            <DownloadCloud className="w-3.5 h-3.5" />
             <span>Download PDF</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="space-y-2">
-          <div className="p-3 bg-slate-950 border border-slate-900 rounded-lg mb-4 text-center">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Report Identifier</span>
-            <span className="font-mono text-xs font-bold text-slate-300 mt-1 block">{report.report_id}</span>
+      {/* Main Tab Controls */}
+      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('supervisory')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === 'supervisory'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Supervisory & Canonical Domains</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('markdown')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === 'markdown'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>Markdown Document View</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('sectional')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === 'sectional'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>11-Section Investment Memo</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Supervisory & Canonical Domains View */}
+      {activeTab === 'supervisory' && (
+        <div className="space-y-8">
+          {/* Supervisory Review Component */}
+          <SupervisoryReviewView review={supervisoryReview} />
+
+          {/* 6 Canonical Domains Component */}
+          <CanonicalDomainsView domainReports={domainReports} legacyGraph={report} />
+        </div>
+      )}
+
+      {/* Tab 2: Markdown Document View */}
+      {activeTab === 'markdown' && (
+        <div className="glass rounded-xl p-8 border border-slate-800 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
+              Markdown Document View
+            </h3>
+            <span className="text-xs text-slate-500 font-mono">Format: GitHub Flavored Markdown</span>
           </div>
 
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const isActive = activeSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center justify-between text-left px-4 py-3 rounded-lg text-xs font-semibold transition-all ${
-                    isActive
-                      ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                      : 'text-slate-400 hover:bg-slate-900/50 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  <span>{item.name}</span>
-                  <ChevronRight className={`w-3.5 h-3.5 opacity-60 ${isActive ? 'block' : 'hidden'}`} />
-                </button>
-              );
-            })}
-          </nav>
+          {isLoadingMarkdown ? (
+            <div className="flex items-center justify-center py-16 space-x-2 text-slate-400 text-xs">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <span>Fetching markdown report content...</span>
+            </div>
+          ) : (
+            <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 overflow-x-auto">
+              <pre className="font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {markdownContent || 'Markdown not available.'}
+              </pre>
+            </div>
+          )}
         </div>
+      )}
 
-        <div className="lg:col-span-3 space-y-6">
-          <div className="glass rounded-xl p-8 border border-slate-800/50 space-y-6 min-h-[500px] flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-900 pb-4">
-                <h2 className="text-lg font-bold text-slate-100">{currentSection.name.split('. ')[1]}</h2>
-                <div className="flex items-center space-x-2 text-xs">
-                  <span className="text-slate-500">Confidence:</span>
-                  <span className="text-blue-400 font-bold">{(currentSection.data?.confidence || 0.85).toFixed(2)}</span>
+      {/* Tab 3: Legacy 11-Section Memo View */}
+      {activeTab === 'sectional' && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="space-y-2">
+            <div className="p-3 bg-slate-950 border border-slate-900 rounded-lg mb-4 text-center">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Report ID</span>
+              <span className="font-mono text-xs font-bold text-slate-300 mt-1 block">{report.report_id}</span>
+            </div>
+
+            <nav className="space-y-1">
+              {menuItems.map((item) => {
+                const isActive = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id)}
+                    className={`w-full flex items-center justify-between text-left px-4 py-3 rounded-lg text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                        : 'text-slate-400 hover:bg-slate-900/50 hover:text-slate-200 border border-transparent'
+                    }`}
+                  >
+                    <span>{item.name}</span>
+                    <ChevronRight className={`w-3.5 h-3.5 opacity-60 ${isActive ? 'block' : 'hidden'}`} />
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="lg:col-span-3 space-y-6">
+            <div className="glass rounded-xl p-8 border border-slate-800/50 space-y-6 min-h-[500px] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-900 pb-4">
+                  <h2 className="text-lg font-bold text-slate-100">{currentSection.name.split('. ')[1]}</h2>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="text-slate-500">Confidence:</span>
+                    <span className="text-blue-400 font-bold">{typeof currentSection.data?.confidence === 'number' ? currentSection.data.confidence.toFixed(2) : 'N/A'}</span>
+                  </div>
+                </div>
+
+                <div className="w-full">
+                  {renderSectionContent(currentSection.data?.content || '')}
                 </div>
               </div>
 
-              <div className="w-full">
-                {renderSectionContent(currentSection.data?.content || '')}
+              {/* Verification Footer */}
+              <div className="pt-6 border-t border-slate-900/60 flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+                <div className="flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Verified Fact-to-Evidence Traceability Audit Check Passed</span>
+                </div>
+                <span>Graph Version: {report.graph_version}</span>
               </div>
-            </div>
-
-            {/* Verification Footer */}
-            <div className="pt-6 border-t border-slate-900/60 flex items-center justify-between text-[10px] text-slate-500 font-semibold">
-              <div className="flex items-center space-x-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Verified Fact-to-Evidence Traceability Audit Check Passed</span>
-              </div>
-              <span>Graph Version: {report.graph_version}</span>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

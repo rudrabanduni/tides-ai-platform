@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Generator, List, Dict, Any, Optional
 from fastapi import Depends, BackgroundTasks, status
 from sqlalchemy.orm import Session
@@ -35,11 +35,20 @@ logger = logging.getLogger("tides_api")
 class EvaluationService:
     def __init__(self, db: Session):
         self.db = db
-        self.graphs_dir = os.path.join("uploads", "graphs")
+        from app.core.config import get_settings
+        self.graphs_dir = os.path.join(get_settings().upload_dir, "graphs")
         os.makedirs(self.graphs_dir, exist_ok=True)
 
     def _get_graph_path(self, startup_id: str) -> str:
-        return os.path.join(self.graphs_dir, f"{startup_id}.json")
+        from pathlib import Path
+
+        if not startup_id or "/" in startup_id or "\\" in startup_id or ".." in startup_id:
+            raise EvaluationNotFoundError(str(startup_id))
+        graphs_root = Path(self.graphs_dir).resolve()
+        candidate = (graphs_root / f"{startup_id}.json").resolve()
+        if candidate.parent != graphs_root:
+            raise EvaluationNotFoundError(str(startup_id))
+        return str(candidate)
 
     def save_graph(self, graph: ObservationGraph) -> None:
         path = self._get_graph_path(graph.startup_id)
@@ -49,18 +58,35 @@ class EvaluationService:
 
     def get_graph(self, startup_id: str) -> ObservationGraph:
         path = self._get_graph_path(startup_id)
-        if not os.path.exists(path):
-            raise EvaluationNotFoundError(startup_id)
-        with open(path, "r", encoding="utf-8") as f:
-            json_str = f.read()
-        return graph_from_json(json_str)
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                json_str = f.read()
+            return graph_from_json(json_str)
+
+        for sid in self.list_evaluated_startups():
+            try:
+                candidate_path = self._get_graph_path(sid)
+                with open(candidate_path, "r", encoding="utf-8") as f:
+                    candidate = graph_from_json(f.read())
+                if candidate.report and candidate.report.report_id == startup_id:
+                    return candidate
+            except Exception:
+                pass
+
+        raise EvaluationNotFoundError(startup_id)
 
     def list_evaluated_startups(self) -> List[str]:
         if not os.path.exists(self.graphs_dir):
             return []
         startups = []
-        for name in os.listdir(self.graphs_dir):
-            if name.endswith(".json") and name != "portfolio.json":
+        for name in sorted(os.listdir(self.graphs_dir)):
+            if (
+                name.endswith(".json")
+                and not name.startswith(".")
+                and name != "portfolio.json"
+                and not name.endswith(".metadata.json")
+                and not name.startswith("REPORT-")
+            ):
                 startups.append(name[:-5])
         return startups
 
@@ -68,7 +94,9 @@ class EvaluationService:
         graphs = []
         for sid in self.list_evaluated_startups():
             try:
-                graphs.append(self.get_graph(sid))
+                graph = self.get_graph(sid)
+                if getattr(graph, "startup_id", None):
+                    graphs.append(graph)
             except Exception:
                 pass
         return graphs
@@ -183,15 +211,18 @@ class EvaluationService:
 
                 graph = ObservationGraphBuilder.build(profile, claims, evidence, assessments, conflicts)
             else:
-                # Use deterministic mock generator from committee test to ensure realistic schema coverage
-                from tests.test_committee_engine import create_mock_graph as build_mock_graph
+                # Use production-safe offline fallback graph builder (no test imports)
+                from app.modules.evaluation.graph.mock_graph import (
+                    create_fallback_observation_graph as build_mock_graph,
+                )
                 graph = build_mock_graph(
                     startup_id=str(startup_id),
                     name=startup.startup_name,
                     category=startup.sector or "Unknown",
                     investment_score=75.0,
-                    confidence=0.85
+                    confidence=0.85,
                 )
+                setattr(graph, "evaluation_mode", "MOCK_SIMULATED_OFFLINE")
 
             # Update stage
             status_rec.current_stage = "RUNNING_ENGINES"
@@ -209,6 +240,7 @@ class EvaluationService:
 
             # Run Report Engine
             graph = DueDiligenceReportEngine.generate(graph)
+            # Keep explicit evaluation_mode attached to graph (serialized alongside report)
 
             # Save initial graph state
             self.save_graph(graph)
@@ -244,7 +276,7 @@ class EvaluationService:
             status_rec.status = PipelineStatus.COMPLETED
             status_rec.current_stage = "COMPLETED"
             status_rec.progress_percentage = 100
-            status_rec.completed_at = datetime.utcnow()
+            status_rec.completed_at = datetime.now(timezone.utc)
             status_rec.processing_time_ms = duration_ms
             self.db.commit()
 
@@ -263,7 +295,8 @@ class EvaluationService:
 class PortfolioService:
     def __init__(self, db: Session):
         self.db = db
-        self.graphs_dir = os.path.join("uploads", "graphs")
+        from app.core.config import get_settings
+        self.graphs_dir = os.path.join(get_settings().upload_dir, "graphs")
         self.portfolio_path = os.path.join(self.graphs_dir, "portfolio.json")
 
     def _load_portfolio(self) -> Optional[Portfolio]:
@@ -360,18 +393,30 @@ class ReportService:
         graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
             raise EvaluationNotFoundError(report_id_or_startup_id)
+        if not getattr(graph.report, "final_review", None):
+            graph.report.final_review = getattr(graph, "final_review", None) or getattr(graph, "supervisory_review", None)
+        if not getattr(graph.report, "domain_reports", None):
+            graph.report.domain_reports = getattr(graph, "domain_reports", None)
         return graph.report
 
     def download_pdf(self, report_id_or_startup_id: str) -> bytes:
         graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
             raise EvaluationNotFoundError(report_id_or_startup_id)
+        if not getattr(graph.report, "final_review", None):
+            graph.report.final_review = getattr(graph, "final_review", None) or getattr(graph, "supervisory_review", None)
+        if not getattr(graph.report, "domain_reports", None):
+            graph.report.domain_reports = getattr(graph, "domain_reports", None)
         return ReportSerializer.export_pdf_data(graph.report)
 
     def get_markdown(self, report_id_or_startup_id: str) -> str:
         graph = self._find_graph(report_id_or_startup_id)
         if not graph.report:
             raise EvaluationNotFoundError(report_id_or_startup_id)
+        if not getattr(graph.report, "final_review", None):
+            graph.report.final_review = getattr(graph, "final_review", None) or getattr(graph, "supervisory_review", None)
+        if not getattr(graph.report, "domain_reports", None):
+            graph.report.domain_reports = getattr(graph, "domain_reports", None)
         return ReportSerializer.export_markdown(graph.report)
 
 # Dependency Injection Resolvers

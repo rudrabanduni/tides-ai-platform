@@ -10,6 +10,7 @@ class DocumentClassification(str, Enum):
     PATENT = "Patent"
     RESEARCH_PAPER = "Research Paper"
     EXCEL_INTAKE = "Excel Intake"
+    FOUNDER_RESUME = "Founder Resume"
     TEXT = "Text"
     PDF = "PDF"
     DOCX = "DOCX"
@@ -39,6 +40,8 @@ def classify_document(filename: str, content_type: str | None = None) -> Documen
         return DocumentClassification.RESEARCH_PAPER
     if any(kw in name_lower for kw in ["intake", "application", "form"]):
         return DocumentClassification.EXCEL_INTAKE
+    if any(kw in name_lower for kw in ["cv", "resume", "bio", "curriculum_vitae"]):
+        return DocumentClassification.FOUNDER_RESUME
 
     # 2. Mime type and extension fallbacks
     if ext in [".xlsx", ".xls", ".csv"] or (content_type and content_type in [

@@ -47,7 +47,7 @@ def login(request: Request, payload: LoginRequest, db: Annotated[Session, Depend
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(request: Request, payload: RefreshRequest, db: Annotated[Session, Depends(get_db)]):
     ip = request.client.host if request.client else "unknown"
-    claims = jwt_service.decode_token(payload.refresh_token)
+    claims = jwt_service.decode_token(payload.refresh_token, expected_type="refresh")
     if not claims:
         security_audit_service.token_invalid(ip, "Invalid or expired refresh token")
         raise HTTPException(

@@ -134,7 +134,11 @@ def to_json(graph: ObservationGraph) -> str:
         "committee_decision": fast_dump(graph.committee_decision, graph) if graph.committee_decision else None,
         "startup_id": graph.startup_id,
         "startup_name": graph.startup_name,
-        "category": graph.category
+        "category": graph.category,
+        "evaluation_mode": getattr(graph, "evaluation_mode", None),
+        "supervisory_review": fast_dump(getattr(graph, "supervisory_review", None), graph) if hasattr(graph, "supervisory_review") and graph.supervisory_review else None,
+        "final_review": fast_dump(getattr(graph, "final_review", None), graph) if hasattr(graph, "final_review") and graph.final_review else None,
+        "domain_reports": fast_dump(getattr(graph, "domain_reports", None), graph) if hasattr(graph, "domain_reports") and graph.domain_reports else None
     }
     return json.dumps(data)
 
@@ -341,6 +345,8 @@ def from_json(json_str: str) -> ObservationGraph:
             conflicts=conflicts,
             resolutions=resolutions,
             missing_information=missing_information,
+            final_review=rep_data.get("final_review") or data.get("final_review") or data.get("supervisory_review"),
+            domain_reports=rep_data.get("domain_reports") or data.get("domain_reports"),
             appendices=appendices,
             traceability=rep_data.get("traceability", {}),
             metadata=rep_data.get("metadata", {})
@@ -368,6 +374,14 @@ def from_json(json_str: str) -> ObservationGraph:
     graph.startup_id = data.get("startup_id", "")
     graph.startup_name = data.get("startup_name", "")
     graph.category = data.get("category", "")
+    if "evaluation_mode" in data and data["evaluation_mode"]:
+        graph.evaluation_mode = data["evaluation_mode"]
+    if "supervisory_review" in data and data["supervisory_review"]:
+        graph.supervisory_review = data["supervisory_review"]
+    if "final_review" in data and data["final_review"]:
+        graph.final_review = data["final_review"]
+    if "domain_reports" in data and data["domain_reports"]:
+        graph.domain_reports = data["domain_reports"]
 
     # Rebuild cache
     from app.modules.evaluation.graph.graph_builder import ObservationGraphBuilder

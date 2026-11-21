@@ -4,6 +4,7 @@ import json
 
 from app.api.responses import make_response
 from app.api.dependencies import get_evaluation_service, EvaluationService
+from app.modules.auth.dependencies import ReadOnlyUser
 from app.modules.evaluation.graph.graph_serializer import to_json as graph_to_json
 
 router = APIRouter(tags=["Graph"])
@@ -11,6 +12,7 @@ router = APIRouter(tags=["Graph"])
 @router.get("/graph/{startup_id}")
 def get_graph(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -21,6 +23,7 @@ def get_graph(
 @router.get("/graph/{startup_id}/trace")
 def get_graph_trace(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -38,6 +41,7 @@ def get_graph_trace(
 @router.get("/graph/{startup_id}/observations")
 def get_graph_observations(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -48,6 +52,7 @@ def get_graph_observations(
 @router.get("/graph/{startup_id}/risks")
 def get_graph_risks(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):
@@ -58,6 +63,7 @@ def get_graph_risks(
 @router.get("/graph/{startup_id}/questions")
 def get_graph_questions(
     request: Request,
+    current_user: ReadOnlyUser,
     startup_id: UUID = Path(...),
     eval_service: EvaluationService = Depends(get_evaluation_service)
 ):

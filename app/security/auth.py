@@ -76,15 +76,15 @@ def _resolve_user_by_api_key(raw_key: str, db: Session) -> User | None:
     # Look for an active user that has the key's role; fallback to first admin.
     # In a real system this would be a service account; here we use the first
     # matching real user as a proxy so existing RBAC keeps working.
-    from app.core.enums import RoleName
     users = UserService(db).list_users(limit=100)
     for u in users:
         if u.role.name == key_obj.role and u.is_active:
             return u
-    # Fallback: first active user regardless of role
-    for u in users:
-        if u.is_active:
-            return u
+    # Fail closed: never escalate an API key to a different role's user
+    logger.warning(
+        "API key rejected: no active user matches key role '%s'",
+        key_obj.role,
+    )
     return None
 
 

@@ -33,6 +33,7 @@ from app.modules.evaluation.versioning.version_queries import (
 from app.api.dependencies import EvaluationService
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType, ObservationNode, RiskNode, Edge
 from tests.test_committee_engine import create_mock_graph
+from app.core.config import get_settings
 from app.modules.evaluation.committee.committee_engine import CommitteeDecisionEngine
 from app.modules.evaluation.committee import Recommendation
 
@@ -42,13 +43,13 @@ def clean_registries():
     clear_workflow_registry()
     clear_audit_ring()
     # Clean up test directories under uploads
-    for d in [os.path.join("uploads", "versions"), os.path.join("uploads", "graphs")]:
+    for d in [os.path.join(get_settings().upload_dir, "versions")]:
         if os.path.exists(d):
             shutil.rmtree(d, ignore_errors=True)
     yield
     clear_workflow_registry()
     clear_audit_ring()
-    for d in [os.path.join("uploads", "versions"), os.path.join("uploads", "graphs")]:
+    for d in [os.path.join(get_settings().upload_dir, "versions")]:
         if os.path.exists(d):
             shutil.rmtree(d, ignore_errors=True)
 

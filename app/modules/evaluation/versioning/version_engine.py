@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.modules.evaluation.versioning.version_models import StartupVersion, VersionSnapshot
 from app.modules.evaluation.versioning import version_events
 from app.modules.evaluation.versioning.version_validator import VersionValidator, VersionValidationError
@@ -23,7 +24,7 @@ class VersionEngine:
 
     @staticmethod
     def _get_versions_dir(startup_id: str) -> str:
-        versions_dir = os.path.join("uploads", "versions", startup_id)
+        versions_dir = os.path.join(get_settings().upload_dir, "versions", startup_id)
         os.makedirs(versions_dir, exist_ok=True)
         return versions_dir
 
@@ -204,7 +205,7 @@ class VersionEngine:
         portfolio_snapshot = None
         portfolio_snapshot_id = "N/A"
         try:
-            portfolio_path = os.path.join("uploads", "graphs", "portfolio.json")
+            portfolio_path = os.path.join(get_settings().upload_dir, "graphs", "portfolio.json")
             if os.path.exists(portfolio_path):
                 with open(portfolio_path, "r", encoding="utf-8") as f:
                     p_data = json.load(f)

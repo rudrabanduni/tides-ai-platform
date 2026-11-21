@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
@@ -25,5 +25,5 @@ def make_response(
         "data": data,
         "metadata": metadata or {},
         "request_id": req_id,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     }

@@ -7,7 +7,14 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+def _engine_kwargs(url: str) -> dict:
+    # SQLite is shared between request threads and the evaluation worker thread.
+    if url.lower().startswith("sqlite"):
+        return {"pool_pre_ping": True, "connect_args": {"check_same_thread": False, "timeout": 15}}
+    return {"pool_pre_ping": True}
+
+
+engine = create_engine(settings.database_url, **_engine_kwargs(settings.database_url))
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 

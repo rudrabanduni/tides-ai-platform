@@ -3,8 +3,10 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
+
+from app.core.config import get_settings
 
 logger = logging.getLogger("tides_api")
 
@@ -37,7 +39,7 @@ def make_error_response(request: Request, message: str, status_code: int) -> JSO
             "data": None,
             "metadata": {},
             "request_id": req_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "detail": message
         }
     )
@@ -62,4 +64,9 @@ def setup_exception_handlers(app):
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
         logger.exception("Internal Server Error")
-        return make_error_response(request, f"Internal Server Error: {str(exc)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        settings = get_settings()
+        if settings.debug or settings.dev_mode:
+            msg = f"Internal Server Error: {str(exc)}"
+        else:
+            msg = "Internal Server Error. Reference request_id for diagnostics."
+        return make_error_response(request, msg, status.HTTP_500_INTERNAL_SERVER_ERROR)

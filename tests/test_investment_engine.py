@@ -1,7 +1,7 @@
 import json
 import time
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Any
 
 from app.modules.evaluation.graph import (
@@ -295,7 +295,7 @@ def test_duplicate_filtering(mock_graph):
         correlation_type="DUPLICATES",
         description="Duplicate observations.",
         confidence=0.9,
-        created_at=datetime.utcnow().isoformat() + "Z"
+        created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     mock_graph.correlations[corr_id] = corr
     
@@ -452,7 +452,7 @@ def test_large_graph_performance():
             supporting_claims=[],
             supporting_evidence=[],
             supporting_assessments=[],
-            created_at=datetime.utcnow().isoformat() + "Z"
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
         graph.resolutions[res_id] = res
         graph.resolutions_by_conflict[f"conf-{i}"] = [res_id]

@@ -1,4 +1,5 @@
 from app.db.base_class import Base
+from app.modules.applications.models import ApplicationSubmission, EvaluationRun
 from app.modules.audit.models import AuditLog
 from app.modules.company_profiles.models import CompanyProfile
 from app.modules.documents.models import Document, DocumentSource
@@ -29,6 +30,8 @@ from app.modules.intelligence.models import (
 
 __all__ = [
     "AIAssessmentRecord",
+    "ApplicationSubmission",
+    "EvaluationRun",
     "AuditLog",
     "Base",
     "CommitteeNote",

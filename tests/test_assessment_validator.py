@@ -1,6 +1,6 @@
 import pytest
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 from app.modules.evaluation.schemas import (
     AgentAssessment,
     Observation,
@@ -91,7 +91,7 @@ def valid_assessment_data() -> dict[str, Any]:
         "prompt_version": "1.0.0",
         "prompt_hash": "dummy-hash",
         "agent_version": "1.0.0",
-        "generated_at": datetime.utcnow()
+        "generated_at": datetime.now(timezone.utc)
     }
 
 
@@ -351,7 +351,7 @@ def test_validator_large_assessment() -> None:
         prompt_version="1.0.0",
         prompt_hash="dummy-hash",
         agent_version="1.0.0",
-        generated_at=datetime.utcnow()
+        generated_at=datetime.now(timezone.utc)
     )
 
     result = AssessmentValidator.validate_assessment(assessment, context_claims=claims, context_evidence=evidence)

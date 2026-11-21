@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 from app.modules.evaluation.versioning.version_models import DeltaReport, DeltaItem, VersionSnapshot
 from app.modules.evaluation.versioning import version_events
@@ -92,7 +92,7 @@ class DeltaEngine:
             removed_items=removed,
             modified_items=modified,
             overall_change_confidence=round(overall_confidence, 4),
-            generated_at=datetime.utcnow()
+            generated_at=datetime.now(timezone.utc)
         )
 
     # --- Generic Comparer Helper ---

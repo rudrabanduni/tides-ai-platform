@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from app.core.config import get_settings
+from app.core.config import get_settings, validate_database_configuration
 from app.api.middleware import RequestIDMiddleware, TimingMiddleware, LoggingMiddleware
 from app.api.exceptions import setup_exception_handlers
 from app.api.routers import (
@@ -12,7 +12,7 @@ from app.api.routers import (
 )
 
 def create_app() -> FastAPI:
-    settings = get_settings()
+    settings = validate_database_configuration(get_settings())
     
     app = FastAPI(
         title="TIDES Intelligence Engine API",
@@ -49,6 +49,8 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Lets the browser read the report filename on PDF downloads.
+        expose_headers=["Content-Disposition"],
     )
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])

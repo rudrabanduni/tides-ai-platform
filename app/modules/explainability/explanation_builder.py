@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Set
 
 from app.modules.evaluation.graph.graph_models import ObservationGraph, NodeType
@@ -228,7 +228,7 @@ class ExplanationBuilder:
             summary=summary,
             confidence=confidence,
             reasoning=reasoning,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             lineage=lineage,
             metadata=metadata
         )

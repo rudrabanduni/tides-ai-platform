@@ -11,10 +11,6 @@ import {
   ArrowLeft, 
   Workflow, 
   X,
-  FileText,
-  ShieldCheck,
-  AlertTriangle,
-  HelpCircle,
   Loader2
 } from 'lucide-react';
 
@@ -54,7 +50,6 @@ export default function GraphPage({ params }: { params: Promise<{ id: string }> 
     const flowEdges: any[] = [];
 
     // Helper to add nodes with positioning
-    let nodeIndex = 0;
     const addNode = (nodeId: string, type: string, label: string, details: any, x: number, y: number) => {
       let colorClass = 'bg-slate-900 border-slate-700 text-slate-100';
       if (type === 'CLAIM') colorClass = 'bg-blue-600/10 border-blue-500/50 text-blue-300';
@@ -66,6 +61,7 @@ export default function GraphPage({ params }: { params: Promise<{ id: string }> 
       flowNodes.push({
         id: nodeId,
         type: 'default',
+        className: `rounded-lg border ${colorClass}`,
         position: { x, y },
         data: { 
           label: (
@@ -85,7 +81,6 @@ export default function GraphPage({ params }: { params: Promise<{ id: string }> 
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
         }
       });
-      nodeIndex++;
     };
 
     // 1. Documents Level (Top)

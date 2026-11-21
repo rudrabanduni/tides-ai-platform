@@ -1,7 +1,7 @@
 import os
 import hashlib
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 
@@ -70,7 +70,7 @@ class PromptManager:
             "prompt_name": metadata.get("name", f"{domain.capitalize()} Analysis Prompt"),
             "prompt_version": metadata.get("version", "1.0.0"),
             "prompt_hash": prompt_hash,
-            "loaded_at": datetime.utcnow().isoformat() + "Z"
+            "loaded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
 
         if use_cache:

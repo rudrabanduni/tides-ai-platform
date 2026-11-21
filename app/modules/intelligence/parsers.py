@@ -120,7 +120,11 @@ class PdfParser(BaseParser):
             except Exception:
                 pass
 
-        text = "\n\n".join(pages_text)
+        # Page markers let downstream evidence carry real page numbers ("[Page 3]").
+        text = "\n\n".join(
+            f"[Page {idx}]\n{page_text}" if len(pages_text) > 1 else page_text
+            for idx, page_text in enumerate(pages_text, start=1)
+        )
         word_count = len(text.split())
         language = detect_language(text)
 

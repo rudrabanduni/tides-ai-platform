@@ -27,6 +27,7 @@ class TokenClaims(BaseModel):
     jti: str  # JWT-ID – unique per token
     exp: datetime
     iat: datetime
+    token_type: str = "access"
 
 
 class TokenData(BaseModel):
