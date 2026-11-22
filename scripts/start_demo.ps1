@@ -39,6 +39,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js not 
 
 # Stop a previous demo started by this script
 & (Join-Path $PSScriptRoot "stop_demo.ps1") -Quiet
+& (Join-Path $PSScriptRoot "stop_live.ps1") -Quiet
 
 # 1. Demo database
 $initArgs = @((Join-Path $PSScriptRoot "init_demo_db.py"))

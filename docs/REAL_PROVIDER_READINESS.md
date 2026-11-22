@@ -1,6 +1,21 @@
 # Real-Provider Readiness (Anthropic Claude via LiteLLM)
 
-**Status: NOT VERIFIED.** No live provider call was made during the v1.1 work. Everything below was
+**Status (2026-11-23): VERIFIED ON ONE REAL APPLICANT.** First authorised live pilot, STETHAIM Private
+Limited (application `TIDES-2026-F46A13`, evaluation `f597f2b2…`), ran end to end with Claude Haiku 5.5
+(extraction) and Sonnet 5.5 (six specialists + supervisory review):
+
+| Attempt | Evaluation | Outcome | Cost | Finding → fix |
+|---|---|---|---:|---|
+| Canary ×3 | — | passed; `between_tools` / `disabled` thinking accepted | 3 × $0.00106 | thinking setting verified live |
+| 1 | `3da1b9ca` | FAILED at extraction stage 9A | $0.0043 | schema rejected `jurisdiction: null` (deck: "patent filed", no country); 7 nullable fields fixed, invented defaults removed |
+| 2 | `9594441a` | BLOCKED by strict validator (all 6 domains + supervisory completed, no truncation) | $0.1992 | CM-05/CM-06 absent from deck but on the intake form → filled from form as applicant-reported; evidence matcher improved for real PDF text |
+| 3 | `f597f2b2` | **COMPLETED, report valid, 87/87** | **$0.2122** | re-run read the earlier run's claims too → each run now assesses only its own extraction |
+
+Total live spend for the pilot: **$0.42**, every evaluation within the $0.60 ceiling. The applicant's score,
+recommendation and report are confidential and kept only in the gitignored `reports/live/` folder.
+One deck is not a statistical sample: watch cost and output tokens on the next few applicants. The historical sections below are kept as the reference procedure.
+
+**Previous status: NOT VERIFIED.** No live provider call was made during the v1.1 work. Everything below was
 verified offline (code inspection, unit and integration tests with mocked transports) or is listed as
 unverified. Passing mock tests does **not** establish live readiness.
 
@@ -39,6 +54,12 @@ complete). Running the domain specialists on Haiku 5.5 would cost about $0.01. T
 model quality and budget is the operator's decision.
 
 ## 4. Pre-pilot checklist (all must be ticked by an authorised operator)
+
+**Update 2026-11-23:** the user authorised live evaluations with a **$0.60** ceiling, Sonnet 5.5
+specialists, and a real applicant deck as the first test. `scripts\start_live.ps1` automates the key
+entry (hidden prompt, never stored), the single-call canary per model (`scripts\live_canary.py`, with
+an automatic `low_effort` fallback if the thinking setting is rejected) and the separate live database
+`tides_live.db`. The items below remain the reference procedure.
 
 - [ ] Written authorisation for a paid run, naming the startup and the budget ceiling.
 - [ ] A **new** startup/evaluation (not PETREVOLT `1a8036ae`), on a database other than `tides_ai.db`.

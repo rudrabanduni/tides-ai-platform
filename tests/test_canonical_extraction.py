@@ -552,7 +552,8 @@ def test_provenance_tracking_across_all_claims_and_evidence(db_session: Session)
             if ev.evidence_snippet is not None:
                 assert len(ev.evidence_snippet) > 0
                 for part in ev.evidence_snippet.split(" / "):
-                    assert part in doc.parsed_text
+                    # Passages may span consecutive lines; compare with whitespace normalised.
+                    assert " ".join(part.split()) in " ".join(doc.parsed_text.split())
     grounded = [e for e in evidence_records if e.evidence_snippet]
     assert len(grounded) >= 8, "most disclosed values must be grounded in the document text"
 

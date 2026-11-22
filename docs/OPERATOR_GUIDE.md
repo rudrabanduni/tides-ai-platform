@@ -15,6 +15,34 @@ kept at `docs/archive/OPERATOR_GUIDE_v1.0_pre_takeover.md`.
 3. Offline demonstration: `powershell -ExecutionPolicy Bypass -File scripts\start_demo.ps1 -Reset`
    (see [DEMO_GUIDE.md](DEMO_GUIDE.md)).
 
+## Live mode (real Claude evaluations)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_live.ps1
+```
+
+1. The script asks for your Anthropic API key in a **hidden** prompt. The key is never shown, saved or
+   logged, and only the running backend holds it. Never paste the key into chat, email or a file.
+2. It runs a two-call canary (under $0.01) to prove the key and model settings work. If the canary
+   fails, nothing starts; details are in `logs\live_canary.json`.
+3. It starts the app at http://localhost:3000 on the separate live database `tides_live.db`.
+   Login: `evaluator@tides.ai`. Print the password with
+   `.venv\Scripts\python.exe scripts\live_instance.py --show-credentials`.
+4. Each evaluation is capped at **$0.60**. Extraction uses Claude Haiku 5.5; the six section specialists
+   and supervisory review use Claude Sonnet 5.5. The run's actual spend is shown on the evaluation page.
+
+Stop with `powershell -ExecutionPolicy Bypass -File scripts\stop_live.ps1`. Starting the demo stops live
+mode, and the other way round, because both use ports 3000/8000. After a reboot, run `start_live.ps1`
+again and re-enter the key. Real applicant documents in live mode are sent to Anthropic for evaluation.
+
+## Scoring standard (section weightage)
+
+`app/modules/evaluation/scoring_standard.json` holds TIDES' weightage: section weights (must add up to
+100), optional per-criterion weights, the missing-information policy, decision thresholds and knockout
+rules. The weighted score and the standard's version and status are shown on every result and PDF.
+Until TIDES supplies its approved weightage (see `docs/CHATGPT_CRITERIA_PROMPT.md`), the file holds
+**provisional equal weights** and no thresholds, and reports say so.
+
 ## Daily workflow
 
 1. **New Application**: enter the full LaunchIndex form (company, contacts, founders, venture,

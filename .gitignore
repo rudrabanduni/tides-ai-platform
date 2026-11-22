@@ -53,3 +53,11 @@ frontend/playwright-report/
 
 # Confidential due-diligence packages about real applicants (kept on disk, never committed)
 reports/hand_off/
+
+# Live (paid Claude) instance data - real applicant documents, never committed
+tides_live.db*
+uploads_live/
+.env.live
+
+# Live reports about real applicants (confidential, never committed)
+reports/live/

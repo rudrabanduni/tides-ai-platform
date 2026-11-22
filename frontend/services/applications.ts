@@ -222,6 +222,35 @@ export interface RunResults {
     domains_cited?: string[];
   };
   validation: { valid: boolean; errors: string[]; warnings?: string[] };
+  weighted_score?: WeightedScore;
+  red_flags?: { id: string; rule: string; finding: string; action: string; criteria: string[] }[];
+}
+
+export interface WeightedScore {
+  standard_version: string;
+  standard_status: 'PROVISIONAL' | 'APPROVED' | string;
+  standard_source?: string;
+  missing_policy: string;
+  overall_score_pct: number | null;
+  overall_score_10: number | null;
+  score_scale_max: number;
+  approved_by?: string | null;
+  effective_date?: string | null;
+  decision_note?: string | null;
+  missing_policy_note?: string | null;
+  weight_coverage_pct: number;
+  recommendation: string | null;
+  recommendation_basis: string;
+  sections: {
+    key: string;
+    title: string;
+    weight_pct: number;
+    score_pct: number | null;
+    score_10: number | null;
+    criteria_scored: number;
+    criteria_not_scored: number;
+    weighted_contribution: number | null;
+  }[];
 }
 
 export interface EvidenceRecord {
