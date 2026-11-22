@@ -1,0 +1,44 @@
+{
+  "version": "taes-v1.0-default-6s-1",
+  "status": "TAES_V1_DEFAULT",
+  "source": "TAES v1.0 suggested default pillar weights mapped to the six LaunchIndex sections (Product 16% + Technology 14% -> Problem & Solution; Founder 18%; Market 14%; Business Model 12%; Financial 10%; IP 8% -> Innovation & Impact). The cross-cutting Risk pillar (8%) is redistributed proportionally across the six sections. TAES describes these as configurable suggested defaults, not a fixed institutional policy.",
+  "approved_by": "TIDES project owner (decision recorded in the engineering session)",
+  "effective_date": "2026-11-23",
+  "score_scale_max": 10,
+  "taes_pillar_weights": {
+    "founder": 18,
+    "product": 16,
+    "technology": 14,
+    "market": 14,
+    "business_model": 12,
+    "financial": 10,
+    "ip": 8,
+    "risk": 8
+  },
+  "section_weights": {
+    "problem_solution": 32.6087,
+    "founder_team": 19.5652,
+    "market_opportunity": 15.2174,
+    "commercialisation": 13.0435,
+    "financials_support": 10.8696,
+    "innovation_impact": 8.6957
+  },
+  "criterion_weights": {},
+  "missing_policy": "zero_required",
+  "missing_policy_note": "LaunchIndex: missing mandatory (starred) information lowers the score, so a required criterion with no applicant information scores 0. Optional and conditional criteria (e.g. FI-08 external funding, PS-10 demo link) and not-applicable items are excluded, not penalised. Explicit zero or 'No' answers are preserved as answers.",
+  "decision_thresholds": [],
+  "decision_note": "No score cut-offs: TAES defines no thresholds and requires the final decision to come from the supervisory synthesis. The committee decides using the weighted score and the supervisory recommendation.",
+  "knockout_rules": [],
+  "red_flag_rules": [
+    {
+      "id": "TRL_GAMING",
+      "rule": "Pre-revenue startup claiming TRL 8-9",
+      "action": "Flag for TRL investigation by the committee (not an automatic rejection)"
+    },
+    {
+      "id": "FOUNDER_EQUITY_BELOW_50",
+      "rule": "Combined founder equity below 50%",
+      "action": "Flag potential dilution / governance concern (not an automatic rejection)"
+    }
+  ]
+}

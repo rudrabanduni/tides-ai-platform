@@ -156,6 +156,11 @@ def test_full_application_to_validated_pdf_workflow(api: TestClient) -> None:
     assert cov["total_present"] == cov["total_expected"] == 87
     assert cov["duplicates"] == [] and cov["unknown"] == [] and cov["missing"] == []
     assert results["validation"]["valid"] is True, results["validation"]
+    ws = results["weighted_score"]
+    assert ws["overall_score_10"] is not None and 0 <= ws["overall_score_10"] <= 10
+    assert ws["standard_status"] == "TAES_V1_DEFAULT"
+    assert isinstance(results["red_flags"], list)
+    assert len(ws["sections"]) == 6 and ws["standard_version"]
     sup = results["supervisory"]
     assert sup["status"] == "COMPLETED"
     assert sup["committee_recommendation"]
@@ -174,7 +179,8 @@ def test_full_application_to_validated_pdf_workflow(api: TestClient) -> None:
     evidence = api.get(f"/api/v1/evaluation-runs/{run['id']}/evidence", params={"ids": ",".join(ev_ids)}).json()
     assert evidence and all(e["snippet"] for e in evidence)
     deck_text = "\n".join(p.extract_text() for p in pypdf.PdfReader(str(DECK)).pages)
-    assert all(e["snippet"].split(" / ")[0] in deck_text for e in evidence)
+    flat_deck = " ".join(deck_text.split())
+    assert all(" ".join(e["snippet"].split(" / ")[0].split()) in flat_deck for e in evidence)
     assert evidence[0]["document"] == "evil_stream.pdf"
 
     # 8. PDF report: real PDF, paginated, all sections, disclosure on every page
@@ -244,3 +250,18 @@ def test_live_provider_runs_are_refused_from_the_web_app(api: TestClient, monkey
         res = api.post(f"/api/v1/applications/{app_data['id']}/evaluations")
     assert res.status_code in (400, 422)
     assert "ALLOW_UI_LIVE_EVALUATIONS" in res.text
+
+
+def test_rerun_assesses_only_its_own_fresh_extraction(api: TestClient) -> None:
+    """Regression (live pilot re-run, 2026-11-23): a second evaluation of the same startup fed the
+    specialists the claims of the earlier run as well (72 -> 151 claims). Each run must assess only the
+    claims extracted in that run; older claims stay stored for audit but are not re-assessed."""
+    app_data = api.post("/api/v1/applications", json=_application_payload("Rerun Scope Pvt Ltd")).json()
+    assert _upload(api, app_data["id"], "deck.pdf", DECK.read_bytes()).status_code == 201
+    first = api.post(f"/api/v1/applications/{app_data['id']}/evaluations").json()
+    second = api.post(f"/api/v1/applications/{app_data['id']}/evaluations", params={"rerun": True}).json()
+    assert second["id"] != first["id"]
+    run1 = api.get(f"/api/v1/evaluation-runs/{first['id']}").json()
+    run2 = api.get(f"/api/v1/evaluation-runs/{second['id']}").json()
+    assert run1["status"] == run2["status"] == "COMPLETED"
+    assert run2["summary"]["claims_count"] == run1["summary"]["claims_count"]

@@ -73,6 +73,23 @@ II 11, FI 21). Registry: `app/modules/evaluation/domains/registry.py` (authorita
 - Known remaining: see release report §8 (live thinking-param acceptance, worst-case live cost, literal evidence
   grounding, production items, legacy pages/overrides).
 
+## Live mode & weightage (2026-11-23)
+- User decisions: live budget **$0.60/evaluation**, **Sonnet 5.5** specialists, first live test on a **real applicant deck**.
+- `scripts/start_live.ps1`: hidden API-key prompt (never stored), canary `scripts/live_canary.py`, separate
+  `tides_live.db` / `uploads_live/` / `.env.live` (gitignored). `scripts/stop_live.ps1` stops it.
+- Weightage: `app/modules/evaluation/scoring_standard.json` (+ `scoring.py`). Currently PROVISIONAL equal weights;
+  TIDES' real weightage is being obtained via `docs/CHATGPT_CRITERIA_PROMPT.md`. Encode it there (status APPROVED).
+
+## First live pilot (2026-11-23) — STETHAIM, COMPLETED
+- Application `TIDES-2026-F46A13` in `tides_live.db`; runs: `3da1b9ca` FAILED (patent schema null), `9594441a`
+  BLOCKED (CM-05/06), `f597f2b2` **COMPLETED, valid, $0.2122**. Pilot total $0.42 incl. canaries.
+- Score, recommendation and PDF are in `reports/live/` only (gitignored; real applicant data, never committed).
+- Fixes from the pilot: nullable extraction fields (no invented defaults), cover metadata from intake form,
+  evidence matcher for real PDF text (`_canon`, 1–3 line windows, identity-field matching), re-runs assess only
+  their own fresh claims.
+- Scoring standard is now TAES v1.0 defaults mapped to six sections, Risk 8% redistributed, 10-point scale,
+  `zero_required` missing policy, no cut-offs (committee decides), red flags TRL_GAMING / FOUNDER_EQUITY_BELOW_50.
+
 ## Next steps
 1. Commit on `release/v1.1-product-completion` only after user approval.
 2. Authorised live pilot: follow `docs/REAL_PROVIDER_READINESS.md` §4 (canary first). Never use PETREVOLT `1a8036ae`.

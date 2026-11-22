@@ -75,10 +75,22 @@ def resolve_structured_output_thinking_kwargs(model: str, mode: str | None = Non
     (`utils.get_optional_params` forwards non-OpenAI kwargs). Live acceptance is NOT verified
     offline; see docs/REAL_PROVIDER_READINESS.md.
     """
-    resolved_mode = (mode or "off").strip().lower()
+    normalized = (model or "").lower().replace("anthropic/", "").replace(".", "-")
+    raw_mode = (mode or "off").strip().lower()
+    # Per-model form, e.g. "sonnet=low_effort,haiku=off" (set by scripts/live_canary.py when needed).
+    if "=" in raw_mode:
+        resolved_mode = "off"
+        for part in raw_mode.split(","):
+            family, _, value = part.partition("=")
+            if family.strip() and family.strip() in normalized:
+                resolved_mode = value.strip() or "off"
+    else:
+        resolved_mode = raw_mode
+    if resolved_mode == "low_effort":
+        # Fallback: keep thinking but at the lowest effort, which minimises thinking tokens.
+        return {"output_config": {"effort": "low"}}
     if resolved_mode != "off":
         return {}
-    normalized = (model or "").lower().replace("anthropic/", "").replace(".", "-")
     if normalized.startswith("claude-sonnet-5-5"):
         return {"thinking": {"type": "between_tools"}}
     if normalized.startswith("claude-haiku-5-5"):

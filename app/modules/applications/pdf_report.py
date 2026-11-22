@@ -206,6 +206,25 @@ def build_run_pdf(db: Session, run: EvaluationRun) -> bytes:
     if is_mock:
         story.append(Paragraph(f"<b>{escape(MOCK_DISCLOSURE)}</b>. All assessments below are deterministic synthetic outputs produced to demonstrate the workflow; they are not an evaluation of any real company.", body))
     story += [Paragraph(_t(p, 1500), body) for p in _section_text(report, ("executive_summary",))[:3]]
+    ws = results.get("weighted_score") or {}
+    if ws:
+        score10 = ws.get("overall_score_10")
+        story.append(Paragraph(
+            f"<b>Weighted score:</b> {_t(score10) if score10 is not None else 'not available'}"
+            f"{' / 10' if score10 is not None else ''} under scoring standard {_t(ws.get('standard_version'))} "
+            f"({_t(ws.get('standard_status'))}; approved by {_t(ws.get('approved_by') or 'not recorded')}; "
+            f"effective {_t(ws.get('effective_date') or 'not recorded')}).",
+            body))
+        story.append(Paragraph(_t(ws.get("decision_note") or ws.get("recommendation_basis")), small))
+        if str(ws.get("standard_status") or "").upper() == "PROVISIONAL":
+            story.append(Paragraph("The scoring weights are provisional (equal weights); treat the weighted score as indicative only.", small))
+        rows_w = [["Section", "Weight", "Section score", "Contribution", "Criteria scored"]]
+        for sec in ws.get("sections", []):
+            rows_w.append([_t(sec["title"]), f"{sec['weight_pct']:.1f}%",
+                           f"{sec['score_10']} / 10" if sec.get("score_10") is not None else "—",
+                           f"{sec['weighted_contribution']}" if sec["weighted_contribution"] is not None else "—",
+                           f"{sec['criteria_scored']} (not scored: {sec['criteria_not_scored']})"])
+        story.append(table(rows_w, [55 * mm, 20 * mm, 28 * mm, 25 * mm, 42 * mm], font=8))
     story.append(Paragraph(f"<b>Supervisory position:</b> {_t(sup.get('overall_diligence_position') or 'Not available')}", body))
     story.append(Paragraph(f"<b>Committee recommendation:</b> {_t(sup.get('committee_recommendation') or 'Not available')}", body))
     cls_counts = coverage.get("evidence_classes") or {}
@@ -286,6 +305,10 @@ def build_run_pdf(db: Session, run: EvaluationRun) -> bytes:
     story += bullets(cited(sup.get("major_strengths") or []), "No strengths met the documentary-evidence threshold (score >= 7 with cited evidence).")
     story.append(Paragraph("13. Key Concerns", h1))
     story += bullets(cited(sup.get("material_weaknesses") or []) + [w for d in results.get("domains", []) for w in d.get("weaknesses", [])][:6], "No material concerns recorded.")
+    flags = results.get("red_flags") or []
+    story.append(Paragraph("TAES red-flag checks", h2))
+    story += bullets([f"{f['rule']}: {f['finding']} {f['action']} [{', '.join(f.get('criteria', []))}]" for f in flags],
+                     "No TAES red flags triggered (TRL claim vs revenue; combined founder equity).")
     story.append(Paragraph("14. Contradictions", h1))
     story += bullets([f"{c.get('description') or c.get('text') or c}" + (f" [{c.get('domain')}]" if isinstance(c, dict) and c.get("domain") else "") for c in sup.get("contradictions") or []], "No contradictions were identified between submitted documents and applicant statements.")
     story.append(PageBreak())
@@ -321,6 +344,9 @@ def build_run_pdf(db: Session, run: EvaluationRun) -> bytes:
     story.append(Paragraph("20. Final Recommendation and Conditions", h1))
     story.append(KeepTogether([
         Paragraph(f"<b>Committee recommendation:</b> {_t(sup.get('committee_recommendation') or 'Not available')}", body),
+        Paragraph(
+            f"<b>Weighted score:</b> {_t(ws.get('overall_score_10'))} / 10 · standard {_t(ws.get('standard_version'))} · "
+            f"{_t(ws.get('recommendation') or ws.get('recommendation_basis'))}", body) if ws else Spacer(1, 1),
         Paragraph("<b>Conditional incubation requirements:</b>", body),
         *bullets(list(sup.get("conditional_requirements") or []), "No conditions recorded."),
     ]))

@@ -24,6 +24,7 @@ from app.modules.evaluation.domains.registry import (
     get_criteria_for_domain,
     get_criterion_metadata,
 )
+from app.modules.evaluation.scoring import compute_weighted_score
 from app.modules.evaluation.evidence_classes import (
     APPLICANT_REPORTED,
     DOCUMENTARY_EVIDENCE,
@@ -132,7 +133,10 @@ def build_cover_assessment(db: Session, startup_id: UUID, submission: Applicatio
             "criterion_id": cm,
             "criterion_name": meta.get("name", cm),
             "value": extracted or form_values.get(cm),
-            "source": "document extraction" if extracted else ("intake form" if form_values.get(cm) else None),
+            "source": (
+                "document" if (extracted and documented)
+                else ("intake form" if form_values.get(cm) else ("applicant statement" if extracted else None))
+            ),
             "verification_status": status,
             "evidence_class": cls,
             "evidence_class_label": evidence_class_label(cls),
@@ -140,6 +144,61 @@ def build_cover_assessment(db: Session, startup_id: UUID, submission: Applicatio
             "score": None,
         })
     return out
+
+
+# --------------------------------------------------------------------------- red flags (TAES)
+def _number(text: Any) -> float | None:
+    m = re.search(r"-?\d+(?:\.\d+)?", str(text or "").replace(",", ""))
+    return float(m.group(0)) if m else None
+
+
+def build_red_flags(db: Session, startup_id: UUID) -> list[dict[str, Any]]:
+    """Deterministic TAES red-flag checks on the startup's own extracted claims.
+
+    Flags are for committee attention only; none is an automatic rejection.
+    """
+    from app.modules.intelligence.models import StartupClaim, StartupIntelligenceProfile
+
+    profile = db.query(StartupIntelligenceProfile).filter(StartupIntelligenceProfile.startup_id == startup_id).first()
+    if not profile:
+        return []
+    values: dict[str, Any] = {}
+    for c in db.query(StartupClaim).filter(StartupClaim.profile_id == profile.id).all():
+        key = str(getattr(getattr(c, "field", None), "field_key", "") or "")
+        val = c.value_json if c.value_json is not None else _claim_value(c)
+        if key and val is not None:
+            values.setdefault(key, val)
+
+    flags: list[dict[str, Any]] = []
+    trl = _number(values.get("ps_09_current_trl"))
+    revenue_raw = values.get("bc_09_current_revenue")
+    revenue_text = str(revenue_raw or "").lower()
+    pre_revenue = revenue_raw is not None and (
+        _number(revenue_raw) == 0 or any(t in revenue_text for t in ("pre-revenue", "pre revenue", "nil", "none", "no revenue"))
+    )
+    if trl is not None and trl >= 8 and pre_revenue:
+        flags.append({
+            "id": "TRL_GAMING",
+            "rule": "Pre-revenue startup claiming TRL 8-9",
+            "finding": f"Claimed TRL {trl:g} with current revenue reported as '{revenue_raw}'.",
+            "action": "Committee to investigate the TRL claim (not an automatic rejection).",
+            "criteria": ["PS-09", "BC-09"],
+        })
+
+    founders = values.get("ft_01_founder_details")
+    if isinstance(founders, list) and founders:
+        equities = [_number(f.get("equity_percentage")) for f in founders if isinstance(f, dict)]
+        if equities and all(e is not None for e in equities):
+            total = sum(equities)
+            if total < 50:
+                flags.append({
+                    "id": "FOUNDER_EQUITY_BELOW_50",
+                    "rule": "Combined founder equity below 50%",
+                    "finding": f"Founders together hold {total:g}% equity.",
+                    "action": "Review dilution and governance (not an automatic rejection).",
+                    "criteria": ["FT-01", "FT-06"],
+                })
+    return flags
 
 
 # --------------------------------------------------------------------------- domains
@@ -350,9 +409,12 @@ def build_run_summary(db: Session, run: EvaluationRun) -> dict[str, Any]:
     validation = validate_run_report(run)
     claims = graph.get("claims") or {}
     evidence = graph.get("evidence") or {}
+    weighted = compute_weighted_score(domains)
     return {
         "coverage": coverage,
         "validation": validation,
+        "weighted_score": {k: weighted[k] for k in ("standard_version", "standard_status", "overall_score_pct", "overall_score_10", "recommendation")},
+        "red_flags": [f["id"] for f in build_red_flags(db, run.startup_id)],
         "supervisory_status": supervisory.get("status"),
         "committee_recommendation": supervisory.get("committee_recommendation"),
         "domain_status": {d["key"]: d["status"] for d in domains},
@@ -380,6 +442,8 @@ def build_run_results(db: Session, run: EvaluationRun) -> dict[str, Any]:
         "domains": domains,
         "cover_criteria": cover,
         "coverage": build_coverage(domains, cover),
+        "weighted_score": compute_weighted_score(domains),
+        "red_flags": build_red_flags(db, run.startup_id),
         "supervisory": build_supervisory(graph, domains),
         "validation": (run.summary or {}).get("validation") or validate_run_report(run),
     }

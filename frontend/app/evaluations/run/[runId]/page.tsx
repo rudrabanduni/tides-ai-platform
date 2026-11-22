@@ -245,6 +245,51 @@ export default function EvaluationResultsPage() {
               <Card><div className="text-xs text-slate-500">Supervisory review</div><div className="mt-2"><StatusPill status={sup.status} /></div></Card>
               <Card><div className="text-xs text-slate-500">Report validation</div><div className="mt-2" data-testid="validation-status"><StatusPill status={res.validation.valid ? 'COMPLETED' : 'FAILED'} /></div>{!res.validation.valid && <div className="mt-1 text-xs text-red-300">{res.validation.errors[0]}</div>}</Card>
             </div>
+            {res.weighted_score && (
+              <Card>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-slate-200">Weighted score (TAES weightage)</h3>
+                  <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${res.weighted_score.standard_status === 'PROVISIONAL' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                    {res.weighted_score.standard_version} · {res.weighted_score.standard_status}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-start gap-6">
+                  <div>
+                    <div className="text-4xl font-bold text-slate-100" data-testid="weighted-score">
+                      {res.weighted_score.overall_score_10 ?? '—'}<span className="text-lg text-slate-500"> / {res.weighted_score.score_scale_max}</span>
+                    </div>
+                    <div className="mt-1 max-w-xs text-xs text-slate-500">{res.weighted_score.decision_note || res.weighted_score.recommendation_basis}</div>
+                  </div>
+                  <table className="flex-1 text-left text-xs">
+                    <thead className="text-slate-500"><tr><th className="py-1 pr-3">Section</th><th className="pr-3">Weight</th><th className="pr-3">Score</th><th className="pr-3">Contribution</th><th>Criteria scored</th></tr></thead>
+                    <tbody className="text-slate-300">
+                      {res.weighted_score.sections.map((s) => (
+                        <tr key={s.key}>
+                          <td className="py-0.5 pr-3">{s.title}</td>
+                          <td className="pr-3">{s.weight_pct.toFixed(1)}%</td>
+                          <td className="pr-3">{s.score_10 ?? '—'}{s.score_10 !== null ? ' / 10' : ''}</td>
+                          <td className="pr-3">{s.weighted_contribution ?? '—'}</td>
+                          <td>{s.criteria_scored}{s.criteria_not_scored ? ` (+${s.criteria_not_scored} not scored)` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Approved by {res.weighted_score.approved_by || '—'} · effective {res.weighted_score.effective_date || '—'}. {res.weighted_score.missing_policy_note}
+                </p>
+              </Card>
+            )}
+            <Card>
+              <h3 className="mb-2 text-sm font-bold text-slate-200">TAES red-flag checks</h3>
+              {(res.red_flags || []).length === 0 ? (
+                <p className="text-sm text-slate-500" data-testid="red-flags">No red flags triggered (TRL claim vs revenue; combined founder equity).</p>
+              ) : (
+                <ul className="space-y-1 text-sm text-amber-200" data-testid="red-flags">
+                  {(res.red_flags || []).map((f) => <li key={f.id}><b>{f.rule}:</b> {f.finding} {f.action}</li>)}
+                </ul>
+              )}
+            </Card>
             <Card>
               <h3 className="mb-3 text-sm font-bold text-slate-200">Evidence quality</h3>
               <div className="flex flex-wrap gap-3 text-sm">

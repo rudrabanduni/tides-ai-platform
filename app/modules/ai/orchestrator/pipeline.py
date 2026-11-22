@@ -636,6 +636,36 @@ async def _run_staged_extraction_stages(
     return extracted_domains
 
 
+def _fill_cover_metadata_from_intake(db: Session, startup: Any, extracted: Any) -> list[str]:
+    """Cover criteria CM-01..CM-06 that the documents do not state are taken from the submitted
+    intake form (applicant-reported). Values found in documents are never overwritten, and because
+    the evidence locator only stores a snippet when the value appears in a document, form-sourced
+    values remain applicant-reported rather than documentary evidence.
+    """
+    try:
+        from app.modules.applications.models import ApplicationSubmission
+    except Exception:  # pragma: no cover - module always present
+        return []
+    sub = db.query(ApplicationSubmission).filter(ApplicationSubmission.startup_id == startup.id).first()
+    if sub is None:
+        return []
+    filled: list[str] = []
+    form_values = {
+        "company_name": getattr(startup, "startup_name", None),
+        "sector": getattr(startup, "sector", None),
+        "stage": getattr(startup, "stage", None),
+        "geography": sub.location,
+        "application_date": sub.submitted_at.date().isoformat() if sub.submitted_at else None,
+    }
+    for attr, value in form_values.items():
+        if value and hasattr(extracted, attr) and not getattr(extracted, attr, None):
+            setattr(extracted, attr, str(value))
+            filled.append(attr)
+    if filled:
+        logger.info("[EXTRACTION] Cover metadata taken from intake form for startup %s: %s", startup.id, filled)
+    return filled
+
+
 def _persist_extracted_profile_and_claims(
     db: Session,
     startup: StartupApplication,
@@ -984,6 +1014,7 @@ async def coordinate_evaluation_pipeline(
             default_sector=sector,
             default_stage=stage,
         )
+        _fill_cover_metadata_from_intake(db, startup, extracted)
 
         # Do not print or log the extracted profile: it contains founder PII and confidential
         # application data. Log structure only.
@@ -993,7 +1024,14 @@ async def coordinate_evaluation_pipeline(
             len(extracted_domains),
         )
 
-        # 4. Seed founders and populate ClaimEngine claims & evidence for all 87 canonical criteria
+        # 4. Seed founders and populate ClaimEngine claims & evidence for all 87 canonical criteria.
+        # Claims persisted by earlier runs for this startup are noted first, so this evaluation
+        # assesses only its own fresh extraction (a re-run must not see duplicate older claims).
+        _prior_profile = StartupIntelligenceProfileRepository(db).get_by_startup(startup.id)
+        prior_claim_ids = (
+            {c.id for c in StartupClaimRepository(db).list_for_profile(_prior_profile.id)}
+            if _prior_profile else set()
+        )
         _persist_extracted_profile_and_claims(
             db=db,
             startup=startup,
@@ -1046,11 +1084,21 @@ async def coordinate_evaluation_pipeline(
 
     profile = StartupIntelligenceProfileRepository(db).get_by_startup(startup.id)
 
-    claims = StartupClaimRepository(db).list_for_profile(profile.id)
+    all_claims = StartupClaimRepository(db).list_for_profile(profile.id)
+    fresh_claims = [c for c in all_claims if c.id not in prior_claim_ids]
+    claims = fresh_claims or all_claims
+    if prior_claim_ids and fresh_claims:
+        logger.info(
+            "[EXTRACTION] Using %d claims from this run; %d older claims for startup %s are kept but not re-assessed.",
+            len(fresh_claims), len(all_claims) - len(fresh_claims), startup.id,
+        )
+    claim_ids = {c.id for c in claims}
 
-    evidence = db.query(StartupEvidence).join(StartupClaim).filter(StartupClaim.profile_id == profile.id).all()
+    evidence = [
+        e for e in db.query(StartupEvidence).join(StartupClaim).filter(StartupClaim.profile_id == profile.id).all()
+        if e.claim_id in claim_ids
+    ]
 
-    
 
     return await _evaluate_and_generate_report(
 

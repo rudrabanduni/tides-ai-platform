@@ -31,7 +31,7 @@ class KeyFeatureBenefit(BaseModel):
 class CompetitorEntry(BaseModel):
     """MO-07, MO-08, MO-09: Direct competitor specification."""
     name: str = Field(..., description="Competitor company or product name")
-    country: str = Field(default="Unknown", description="Country / headquarters of competitor")
+    country: Optional[str] = Field(default=None, description="Country / headquarters of competitor")
     funding_raised: Optional[str] = Field(default=None, description="Reported or estimated funding raised")
     approach: Optional[str] = Field(default=None, description="Competitor's technical or business approach")
     startup_advantage: Optional[str] = Field(default=None, description="Startup's specific advantage over competitor")
@@ -40,7 +40,7 @@ class CompetitorEntry(BaseModel):
 class FounderEntry(BaseModel):
     """FT-01 to FT-06: Detailed founder record supporting multi-founder teams."""
     name: str = Field(..., description="Full legal name of the founder")
-    role: str = Field(default="Founder", description="Operational title (e.g. 'Co-Founder & CEO')")
+    role: Optional[str] = Field(default="Founder", description="Operational title (e.g. 'Co-Founder & CEO')")
     equity_percentage: Optional[str] = Field(default=None, description="Equity ownership percentage or shares")
     linkedin_url: Optional[str] = Field(default=None, description="Public LinkedIn profile URL")
     education_degree: Optional[str] = Field(default=None, description="Highest degree attained")
@@ -77,8 +77,8 @@ class AdvisorEntry(BaseModel):
 class PilotAgreementEntry(BaseModel):
     """BC-10: Commercial agreement, pilot, or LOI."""
     partner_name: str = Field(..., description="Name of enterprise or client")
-    agreement_type: str = Field(default="LOI", description="'Signed Pilot', 'Paid Contract', 'LOI', or 'MOU'")
-    is_signed: bool = Field(default=False, description="Whether the agreement is legally signed")
+    agreement_type: Optional[str] = Field(default="LOI", description="'Signed Pilot', 'Paid Contract', 'LOI', or 'MOU'")
+    is_signed: Optional[bool] = Field(default=False, description="Whether the agreement is legally signed")
     contract_value: Optional[str] = Field(default=None, description="Stated or projected monetary value")
 
 
@@ -86,8 +86,8 @@ class PatentEntry(BaseModel):
     """II-07: Intellectual property filing."""
     title: Optional[str] = Field(default=None, description="Title of patent or invention")
     application_number: Optional[str] = Field(default=None, description="Filing or patent registration number")
-    status: str = Field(default="Filed", description="'Granted', 'Published', 'Filed', or 'Provisional'")
-    jurisdiction: str = Field(default="India", description="Patent office jurisdiction (e.g. 'IPO', 'USPTO')")
+    status: Optional[str] = Field(default=None, description="'Granted', 'Published', 'Filed', or 'Provisional'")
+    jurisdiction: Optional[str] = Field(default=None, description="Patent office jurisdiction (e.g. 'IPO', 'USPTO')")
 
 
 class SDGAlignmentEntry(BaseModel):
@@ -132,7 +132,7 @@ class ContactInfoEntry(BaseModel):
 
 class ApplicantDeclarationEntry(BaseModel):
     """FI-21: Official declaration and signatory status."""
-    is_signed: bool = Field(default=False)
+    is_signed: Optional[bool] = Field(default=False)
     signatory_name: Optional[str] = Field(default=None)
     declaration_date: Optional[str] = Field(default=None)
 
